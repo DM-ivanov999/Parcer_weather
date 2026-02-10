@@ -60,7 +60,7 @@ jobs:
             # Continue даже если один город упал
             if python uv_india.py "$city"; then
               echo "✅ $city - success"
-              ((success_count++))
+              success_count=$((success_count + 1))
             else
               echo "❌ $city - failed"
               failed_cities+=("$city")
