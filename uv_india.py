@@ -74,7 +74,7 @@ def fetch_uv(city: str) -> dict:
         "current":   "uv_index,temperature_2m,relative_humidity_2m,"
                      "weather_code,wind_speed_10m,apparent_temperature",
         "timezone":  "Asia/Kolkata",
-    })
+    }, timeout=30)
     response.raise_for_status()
     data = response.json()
 
