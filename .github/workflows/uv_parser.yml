@@ -1,0 +1,54 @@
+name: UV Parser
+
+on:
+  schedule:
+    # Каждый час (в 0 минут)
+    - cron: '0 * * * *'
+
+  # Разрешить ручной запуск
+  workflow_dispatch:
+
+jobs:
+  fetch-uv-data:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Fetch UV data for all cities
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_TABLE: uv_index
+        run: |
+          echo "Starting UV data collection..."
+
+          # Основные города для парсинга
+          cities=("Delhi" "Mumbai" "Bangalore" "Chennai" "Kolkata" "Hyderabad")
+
+          for city in "${cities[@]}"; do
+            echo "Fetching UV data for $city..."
+            python uv_india.py "$city"
+
+            # Небольшая задержка между запросами (чтобы не перегрузить API)
+            sleep 2
+          done
+
+          echo "UV data collection completed!"
+
+      - name: Summary
+        run: |
+          echo "✅ UV data successfully collected and saved to Supabase"
+          echo "📊 Cities processed: Delhi, Mumbai, Bangalore, Chennai, Kolkata, Hyderabad"
+          echo "⏰ Next run: in 1 hour"
