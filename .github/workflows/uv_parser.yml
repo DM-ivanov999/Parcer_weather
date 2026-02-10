@@ -33,6 +33,20 @@ jobs:
           SUPABASE_TABLE: uv_index
         run: |
           echo "Starting UV data collection..."
+          echo ""
+          echo "🔍 Environment check:"
+          if [ -z "$SUPABASE_URL" ]; then
+            echo "❌ SUPABASE_URL is empty!"
+          else
+            echo "✅ SUPABASE_URL is set (${#SUPABASE_URL} chars)"
+          fi
+
+          if [ -z "$SUPABASE_KEY" ]; then
+            echo "❌ SUPABASE_KEY is empty!"
+          else
+            echo "✅ SUPABASE_KEY is set (${#SUPABASE_KEY} chars)"
+          fi
+          echo ""
 
           # Основные города для парсинга
           cities=("Delhi" "Mumbai" "Bangalore" "Chennai" "Kolkata" "Hyderabad")
