@@ -55,8 +55,8 @@ SUPABASE_TABLE = os.getenv("SUPABASE_TABLE", "uv_index")
 # OPEN-METEO API (бесплатно, без ключа)
 # ============================================================
 
-def fetch_uv(city: str) -> dict:
-    """Запрашивает UV Index и погоду через Open-Meteo."""
+def fetch_uv(city: str, retries: int = 3) -> dict:
+    """Запрашивает UV Index и погоду через Open-Meteo с retry."""
 
     city_title = city.strip().title()
 
@@ -68,15 +68,28 @@ def fetch_uv(city: str) -> dict:
 
     coords = CITIES[city_title]
 
-    response = requests.get("https://api.open-meteo.com/v1/forecast", params={
-        "latitude":  coords["lat"],
-        "longitude": coords["lon"],
-        "current":   "uv_index,temperature_2m,relative_humidity_2m,"
-                     "weather_code,wind_speed_10m,apparent_temperature",
-        "timezone":  "Asia/Kolkata",
-    }, timeout=30)
-    response.raise_for_status()
-    data = response.json()
+    # Retry logic
+    for attempt in range(retries):
+        try:
+            response = requests.get("https://api.open-meteo.com/v1/forecast", params={
+                "latitude":  coords["lat"],
+                "longitude": coords["lon"],
+                "current":   "uv_index,temperature_2m,relative_humidity_2m,"
+                             "weather_code,wind_speed_10m,apparent_temperature",
+                "timezone":  "Asia/Kolkata",
+            }, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            break  # Success, exit retry loop
+        except (requests.RequestException, requests.Timeout) as exc:
+            if attempt < retries - 1:
+                wait = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
+                print(f"⚠️  Retry {attempt + 1}/{retries} for {city_title} after {wait}s: {exc}")
+                import time
+                time.sleep(wait)
+            else:
+                print(f"❌ Failed to fetch {city_title} after {retries} attempts: {exc}")
+                raise
 
     current = data["current"]
 
@@ -239,8 +252,9 @@ def save(data: dict):
     if supabase_enabled():
         try:
             save_to_supabase(data)
+            print(f"✅ Supabase: {data['city']} saved successfully")
         except requests.RequestException as exc:
-            print(f"⚠️  Supabase save failed: {exc}")
+            print(f"⚠️  Supabase save failed for {data['city']}: {exc}")
 
 
 # ============================================================

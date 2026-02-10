@@ -37,15 +37,40 @@ jobs:
           # Основные города для парсинга
           cities=("Delhi" "Mumbai" "Bangalore" "Chennai" "Kolkata" "Hyderabad")
 
+          success_count=0
+          failed_cities=()
+
           for city in "${cities[@]}"; do
             echo "Fetching UV data for $city..."
-            python uv_india.py "$city"
+
+            # Continue даже если один город упал
+            if python uv_india.py "$city"; then
+              echo "✅ $city - success"
+              ((success_count++))
+            else
+              echo "❌ $city - failed"
+              failed_cities+=("$city")
+            fi
 
             # Небольшая задержка между запросами (чтобы не перегрузить API)
             sleep 2
           done
 
+          echo ""
+          echo "=========================================="
           echo "UV data collection completed!"
+          echo "✅ Success: $success_count/${#cities[@]}"
+
+          if [ ${#failed_cities[@]} -gt 0 ]; then
+            echo "❌ Failed cities: ${failed_cities[*]}"
+          fi
+          echo "=========================================="
+
+          # Fail job только если ВСЕ города упали
+          if [ $success_count -eq 0 ]; then
+            echo "ERROR: All cities failed!"
+            exit 1
+          fi
 
       - name: Summary
         run: |
