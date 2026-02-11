@@ -2,10 +2,7 @@ name: UV Parser
 
 on:
   schedule:
-    # Каждый час (в 0 минут)
     - cron: '0 * * * *'
-
-  # Разрешить ручной запуск
   workflow_dispatch:
 
 jobs:
@@ -23,71 +20,10 @@ jobs:
           cache: 'pip'
 
       - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
+        run: pip install -r requirements.txt
 
-      - name: Fetch UV data for all cities
+      - name: Fetch UV data for all active cities
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          SUPABASE_TABLE: uv_index
-        run: |
-          echo "Starting UV data collection..."
-          echo ""
-          echo "🔍 Environment check:"
-          if [ -z "$SUPABASE_URL" ]; then
-            echo "❌ SUPABASE_URL is empty!"
-          else
-            echo "✅ SUPABASE_URL is set (${#SUPABASE_URL} chars)"
-          fi
-
-          if [ -z "$SUPABASE_KEY" ]; then
-            echo "❌ SUPABASE_KEY is empty!"
-          else
-            echo "✅ SUPABASE_KEY is set (${#SUPABASE_KEY} chars)"
-          fi
-          echo ""
-
-          # Основные города для парсинга
-          cities=("Delhi" "Mumbai" "Bangalore" "Chennai" "Kolkata" "Hyderabad")
-
-          success_count=0
-          failed_cities=()
-
-          for city in "${cities[@]}"; do
-            echo "Fetching UV data for $city..."
-
-            # Continue даже если один город упал
-            if python uv_india.py "$city"; then
-              echo "✅ $city - success"
-              success_count=$((success_count + 1))
-            else
-              echo "❌ $city - failed"
-              failed_cities+=("$city")
-            fi
-
-            # Небольшая задержка между запросами (чтобы не перегрузить API)
-            sleep 2
-          done
-
-          echo ""
-          echo "=========================================="
-          echo "UV data collection completed!"
-          echo "✅ Success: $success_count/${#cities[@]}"
-
-          if [ ${#failed_cities[@]} -gt 0 ]; then
-            echo "❌ Failed cities: ${failed_cities[*]}"
-          fi
-          echo "=========================================="
-
-          # Fail job только если ВСЕ города упали
-          if [ $success_count -eq 0 ]; then
-            echo "ERROR: All cities failed!"
-            exit 1
-          fi
-
-      - name: Summary
-        run: |
-          echo "✅ UV data successfully collected and saved to Supabase"
-          echo "📊 Cities processed: Delhi, Mumbai, Bangalore, Chennai, Kolkata, Hyderabad"
-          echo "⏰ Next run: in 1 hour"
+        run: python uv_india.py

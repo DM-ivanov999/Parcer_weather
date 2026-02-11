@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UV Weather Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #333; padding: 20px; }
+  .container { max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin-bottom: 20px; }
+  h2 { font-size: 1.1rem; margin-bottom: 10px; color: #555; }
+
+  /* Setup panel */
+  .setup { background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+  .setup input { width: 100%; padding: 8px; margin: 4px 0; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
+  .setup button { margin-top: 8px; }
+  .setup.connected { background: #d4edda; border-color: #28a745; }
+
+  /* Cards */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: #fff; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid #eee; }
+  th { font-weight: 600; color: #666; font-size: 11px; text-transform: uppercase; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .badge-green { background: #d4edda; color: #155724; }
+  .badge-gray { background: #e9ecef; color: #6c757d; }
+  .badge-low { background: #d4edda; color: #155724; }
+  .badge-moderate { background: #fff3cd; color: #856404; }
+  .badge-high { background: #f8d7da; color: #721c24; }
+  .badge-veryhigh { background: #f5c6cb; color: #721c24; }
+  .badge-extreme { background: #721c24; color: #fff; }
+
+  /* Buttons */
+  button, .btn { padding: 6px 14px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; }
+  .btn-primary { background: #007bff; color: #fff; }
+  .btn-primary:hover { background: #0056b3; }
+  .btn-danger { background: #dc3545; color: #fff; }
+  .btn-danger:hover { background: #c82333; }
+  .btn-success { background: #28a745; color: #fff; }
+  .btn-success:hover { background: #218838; }
+  .btn-sm { padding: 3px 8px; font-size: 11px; }
+  .btn-outline { background: transparent; border: 1px solid #ccc; color: #666; }
+  .btn-outline:hover { background: #f0f0f0; }
+
+  /* Forms */
+  .form-row { display: flex; gap: 8px; margin-bottom: 10px; align-items: end; }
+  .form-row input { flex: 1; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
+  .form-row label { display: block; font-size: 11px; color: #666; margin-bottom: 2px; }
+  .form-group { flex: 1; }
+
+  /* Actions bar */
+  .actions { display: flex; gap: 10px; margin-bottom: 20px; align-items: center; }
+  .status { font-size: 12px; color: #666; margin-left: auto; }
+  .clickable { cursor: pointer; }
+  .clickable:hover { background: #f8f9fa; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>UV Weather Admin</h1>
+
+  <!-- Setup -->
+  <div class="setup" id="setupPanel">
+    <h2>Connection Settings</h2>
+    <input type="text" id="inputUrl" placeholder="Supabase URL (https://xxx.supabase.co)">
+    <input type="password" id="inputKey" placeholder="Supabase service_role key">
+    <input type="text" id="inputGhToken" placeholder="GitHub Token (optional, for workflow control)">
+    <input type="text" id="inputGhRepo" placeholder="GitHub Repo (e.g. DM-ivanov999/Parcer_weather)">
+    <button class="btn btn-primary" onclick="connect()">Connect</button>
+    <button class="btn btn-outline" onclick="clearSettings()">Clear</button>
+  </div>
+
+  <!-- Actions -->
+  <div class="actions" id="actionsBar" style="display:none;">
+    <button class="btn btn-success" onclick="runWorkflow()">Run Parser Now</button>
+    <button class="btn btn-outline" onclick="refreshAll()">Refresh Data</button>
+    <span class="status" id="statusText"></span>
+  </div>
+
+  <!-- Main grid -->
+  <div class="grid">
+    <!-- Current UV Data -->
+    <div class="card" id="dataCard" style="grid-column: 1 / -1;">
+      <h2>Current UV Data</h2>
+      <table>
+        <thead><tr><th>City</th><th>UV Index</th><th>Temp</th><th>Humidity</th><th>Wind</th><th>Weather</th><th>Updated</th></tr></thead>
+        <tbody id="dataBody"><tr><td colspan="7" style="color:#999">Connect to load data...</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- Cities -->
+    <div class="card">
+      <h2>Cities</h2>
+      <div class="form-row">
+        <div class="form-group"><label>Name</label><input id="cityName" placeholder="City name"></div>
+        <div class="form-group"><label>Lat</label><input id="cityLat" placeholder="28.61" type="number" step="any"></div>
+        <div class="form-group"><label>Lon</label><input id="cityLon" placeholder="77.20" type="number" step="any"></div>
+        <button class="btn btn-primary" onclick="addCity()" style="align-self:end;">Add</button>
+      </div>
+      <table>
+        <thead><tr><th>City</th><th>Lat</th><th>Lon</th><th>Status</th><th></th></tr></thead>
+        <tbody id="citiesBody"><tr><td colspan="5" style="color:#999">Loading...</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- DSP Mapping -->
+    <div class="card">
+      <h2>DSP City Mapping</h2>
+      <div class="form-row">
+        <div class="form-group"><label>DSP Name</label><input id="dspName" placeholder="New Delhi"></div>
+        <div class="form-group"><label>Maps to City</label>
+          <select id="dspCitySelect" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;font-size:13px;">
+            <option value="">Select city...</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="addMapping()" style="align-self:end;">Add</button>
+      </div>
+      <table>
+        <thead><tr><th>DSP Name</th><th>Maps to</th><th></th></tr></thead>
+        <tbody id="mappingBody"><tr><td colspan="3" style="color:#999">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+let sb = null;
+let ghToken = '';
+let ghRepo = '';
+let allCities = [];
+
+function getSettings() {
+  return {
+    url: localStorage.getItem('sb_url') || '',
+    key: localStorage.getItem('sb_key') || '',
+    ghToken: localStorage.getItem('gh_token') || '',
+    ghRepo: localStorage.getItem('gh_repo') || 'DM-ivanov999/Parcer_weather',
+  };
+}
+
+function connect() {
+  const url = document.getElementById('inputUrl').value.trim() || getSettings().url;
+  const key = document.getElementById('inputKey').value.trim() || getSettings().key;
+  ghToken = document.getElementById('inputGhToken').value.trim() || getSettings().ghToken;
+  ghRepo = document.getElementById('inputGhRepo').value.trim() || getSettings().ghRepo;
+
+  if (!url || !key) { alert('Supabase URL and Key are required'); return; }
+
+  localStorage.setItem('sb_url', url);
+  localStorage.setItem('sb_key', key);
+  if (ghToken) localStorage.setItem('gh_token', ghToken);
+  if (ghRepo) localStorage.setItem('gh_repo', ghRepo);
+
+  sb = supabase.createClient(url, key);
+  document.getElementById('setupPanel').classList.add('connected');
+  document.getElementById('setupPanel').querySelector('h2').textContent = 'Connected to Supabase';
+  document.getElementById('actionsBar').style.display = 'flex';
+  refreshAll();
+}
+
+function clearSettings() {
+  localStorage.removeItem('sb_url');
+  localStorage.removeItem('sb_key');
+  localStorage.removeItem('gh_token');
+  localStorage.removeItem('gh_repo');
+  location.reload();
+}
+
+function setStatus(msg) {
+  document.getElementById('statusText').textContent = msg;
+}
+
+// ─── Data ──────────────────────────────────────────────
+async function loadData() {
+  const { data, error } = await sb
+    .from('uv_data')
+    .select('*, cities(name)')
+    .order('city_id');
+
+  if (error) { setStatus('Error: ' + error.message); return; }
+  const tbody = document.getElementById('dataBody');
+  if (!data.length) { tbody.innerHTML = '<tr><td colspan="7" style="color:#999">No data yet. Run the parser first.</td></tr>'; return; }
+
+  tbody.innerHTML = data.map(r => {
+    const cls = (r.uv_desc || 'low').toLowerCase().replace(' ', '');
+    const ago = timeAgo(r.updated_at);
+    return `<tr>
+      <td><strong>${r.cities?.name || '?'}</strong></td>
+      <td><span class="badge badge-${cls}">${r.uv_index} ${r.uv_desc}</span></td>
+      <td>${r.temperature}°C</td>
+      <td>${r.humidity}%</td>
+      <td>${r.wind_speed} km/h</td>
+      <td>${r.weather_desc}</td>
+      <td style="color:#999;font-size:11px">${ago}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── Cities ────────────────────────────────────────────
+async function loadCities() {
+  const { data, error } = await sb
+    .from('cities')
+    .select('*')
+    .order('name');
+
+  if (error) { setStatus('Error: ' + error.message); return; }
+  allCities = data;
+  updateCitySelect();
+
+  const tbody = document.getElementById('citiesBody');
+  if (!data.length) { tbody.innerHTML = '<tr><td colspan="5" style="color:#999">No cities added yet.</td></tr>'; return; }
+
+  tbody.innerHTML = data.map(c => `<tr>
+    <td>${c.name}</td>
+    <td>${c.lat}</td>
+    <td>${c.lon}</td>
+    <td>
+      <span class="badge ${c.active ? 'badge-green' : 'badge-gray'} clickable"
+            onclick="toggleCity(${c.id}, ${!c.active})">${c.active ? 'Active' : 'Inactive'}</span>
+    </td>
+    <td><button class="btn btn-danger btn-sm" onclick="deleteCity(${c.id})">x</button></td>
+  </tr>`).join('');
+}
+
+function updateCitySelect() {
+  const sel = document.getElementById('dspCitySelect');
+  sel.innerHTML = '<option value="">Select city...</option>' +
+    allCities.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+}
+
+async function addCity() {
+  const name = document.getElementById('cityName').value.trim();
+  const lat = parseFloat(document.getElementById('cityLat').value);
+  const lon = parseFloat(document.getElementById('cityLon').value);
+  if (!name || isNaN(lat) || isNaN(lon)) { alert('Fill all fields'); return; }
+
+  const { error } = await sb.from('cities').insert({ name, lat, lon, active: true });
+  if (error) { alert('Error: ' + error.message); return; }
+  document.getElementById('cityName').value = '';
+  document.getElementById('cityLat').value = '';
+  document.getElementById('cityLon').value = '';
+  loadCities();
+  setStatus(`City "${name}" added`);
+}
+
+async function toggleCity(id, active) {
+  await sb.from('cities').update({ active }).eq('id', id);
+  loadCities();
+}
+
+async function deleteCity(id) {
+  if (!confirm('Delete this city and its data?')) return;
+  await sb.from('cities').delete().eq('id', id);
+  loadCities();
+  loadData();
+}
+
+// ─── Mapping ───────────────────────────────────────────
+async function loadMapping() {
+  const { data, error } = await sb
+    .from('city_mapping')
+    .select('*, cities(name)')
+    .order('dsp_name');
+
+  if (error) { setStatus('Error: ' + error.message); return; }
+  const tbody = document.getElementById('mappingBody');
+  if (!data.length) { tbody.innerHTML = '<tr><td colspan="3" style="color:#999">No mappings yet.</td></tr>'; return; }
+
+  tbody.innerHTML = data.map(m => `<tr>
+    <td>${m.dsp_name}</td>
+    <td>${m.cities?.name || '?'}</td>
+    <td><button class="btn btn-danger btn-sm" onclick="deleteMapping(${m.id})">x</button></td>
+  </tr>`).join('');
+}
+
+async function addMapping() {
+  const dsp_name = document.getElementById('dspName').value.trim();
+  const city_id = parseInt(document.getElementById('dspCitySelect').value);
+  if (!dsp_name || !city_id) { alert('Fill DSP name and select city'); return; }
+
+  const { error } = await sb.from('city_mapping').insert({ dsp_name, city_id });
+  if (error) { alert('Error: ' + error.message); return; }
+  document.getElementById('dspName').value = '';
+  loadMapping();
+  setStatus(`Mapping "${dsp_name}" added`);
+}
+
+async function deleteMapping(id) {
+  await sb.from('city_mapping').delete().eq('id', id);
+  loadMapping();
+}
+
+// ─── GitHub Actions ────────────────────────────────────
+async function runWorkflow() {
+  if (!ghToken || !ghRepo) { alert('GitHub token and repo are required'); return; }
+  setStatus('Triggering workflow...');
+
+  const resp = await fetch(`https://api.github.com/repos/${ghRepo}/actions/workflows/uv_parser.yml/dispatches`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${ghToken}`,
+      'Accept': 'application/vnd.github.v3+json',
+    },
+    body: JSON.stringify({ ref: 'main' }),
+  });
+
+  if (resp.ok || resp.status === 204) {
+    setStatus('Workflow triggered! Check GitHub Actions.');
+  } else {
+    const err = await resp.json().catch(() => ({}));
+    setStatus('Error: ' + (err.message || resp.status));
+  }
+}
+
+// ─── Helpers ───────────────────────────────────────────
+function timeAgo(ts) {
+  if (!ts) return '—';
+  const diff = (Date.now() - new Date(ts).getTime()) / 1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  return Math.floor(diff / 86400) + 'd ago';
+}
+
+async function refreshAll() {
+  setStatus('Loading...');
+  await Promise.all([loadData(), loadCities(), loadMapping()]);
+  setStatus('Last refresh: ' + new Date().toLocaleTimeString());
+}
+
+// ─── Init ──────────────────────────────────────────────
+(function init() {
+  const s = getSettings();
+  document.getElementById('inputUrl').value = s.url;
+  document.getElementById('inputKey').value = s.key;
+  document.getElementById('inputGhToken').value = s.ghToken;
+  document.getElementById('inputGhRepo').value = s.ghRepo;
+  if (s.url && s.key) connect();
+})();
+</script>
+</body>
+</html>

@@ -1,126 +1,70 @@
 #!/usr/bin/env python3
 """
-UV Index MVP — бесплатно, без ключа, без регистрации
-Источник: Open-Meteo API (open-source)
+UV Index Weather Service v2
 
-Использование:
-    python uv_india.py
-    python uv_india.py "Mumbai"
-    python uv_india.py "Delhi"
-    python uv_india.py "Bangalore"
+Reads active cities from Supabase, fetches UV data from Open-Meteo,
+and upserts results into Supabase uv_data table.
 
-Зависимости:
+Usage:
+    python uv_india.py              # Fetch all active cities
+    python uv_india.py "Mumbai"     # Fetch single city by name
+
+Dependencies:
     pip install requests
 """
 
 import sys
-import sqlite3
 import os
+import time
 import requests
-from datetime import datetime
-from pathlib import Path
+from datetime import datetime, timezone
 
-# ============================================================
-# ГОРОДА ИНДИИ (координаты) — добавляйте свои
-# ============================================================
-
-CITIES = {
-    "Delhi":        {"lat": 28.6139, "lon": 77.2090},
-    "Mumbai":       {"lat": 19.0760, "lon": 72.8777},
-    "Bangalore":    {"lat": 12.9716, "lon": 77.5946},
-    "Hyderabad":    {"lat": 17.3850, "lon": 78.4867},
-    "Chennai":      {"lat": 13.0827, "lon": 80.2707},
-    "Kolkata":      {"lat": 22.5726, "lon": 88.3639},
-    "Pune":         {"lat": 18.5204, "lon": 73.8567},
-    "Ahmedabad":    {"lat": 23.0225, "lon": 72.5714},
-    "Jaipur":       {"lat": 26.9124, "lon": 75.7873},
-    "Goa":          {"lat": 15.2993, "lon": 74.1240},
-    "Lucknow":      {"lat": 26.8467, "lon": 80.9462},
-    "Chandigarh":   {"lat": 30.7333, "lon": 76.7794},
-    "Kochi":        {"lat":  9.9312, "lon": 76.2673},
-    "Varanasi":     {"lat": 25.3176, "lon": 82.9739},
-    "Agra":         {"lat": 27.1767, "lon": 78.0081},
-    "Surat":        {"lat": 21.1702, "lon": 72.8311},
-    "Indore":       {"lat": 22.7196, "lon": 75.8577},
-}
-
-DEFAULT_CITY = "Delhi"
-DB_PATH = Path(__file__).parent / "uv_data.db"
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
-SUPABASE_TABLE = os.getenv("SUPABASE_TABLE", "uv_index")
+
+HEADERS = {
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+    "Content-Type": "application/json",
+}
+
+
+def supabase_enabled() -> bool:
+    return bool(SUPABASE_URL and SUPABASE_KEY)
 
 
 # ============================================================
-# OPEN-METEO API (бесплатно, без ключа)
+# SUPABASE — read cities
 # ============================================================
 
-def fetch_uv(city: str, retries: int = 3) -> dict:
-    """Запрашивает UV Index и погоду через Open-Meteo с retry."""
+def get_active_cities() -> list[dict]:
+    """Read active cities from Supabase cities table."""
+    resp = requests.get(
+        f"{SUPABASE_URL}/rest/v1/cities",
+        headers=HEADERS,
+        params={"active": "eq.true", "select": "id,name,lat,lon", "order": "name.asc"},
+        timeout=15,
+    )
+    resp.raise_for_status()
+    return resp.json()
 
-    city_title = city.strip().title()
 
-    if city_title not in CITIES:
-        print(f"⚠️  Город '{city}' не найден в списке.")
-        print(f"   Доступные: {', '.join(sorted(CITIES.keys()))}")
-        print(f"   Добавьте координаты в словарь CITIES в скрипте.")
-        sys.exit(1)
+def get_city_by_name(name: str) -> dict | None:
+    """Find a single city by name (case-insensitive)."""
+    resp = requests.get(
+        f"{SUPABASE_URL}/rest/v1/cities",
+        headers=HEADERS,
+        params={"name": f"ilike.{name.strip()}", "select": "id,name,lat,lon", "limit": "1"},
+        timeout=15,
+    )
+    resp.raise_for_status()
+    rows = resp.json()
+    return rows[0] if rows else None
 
-    coords = CITIES[city_title]
 
-    # Retry logic
-    for attempt in range(retries):
-        try:
-            response = requests.get("https://api.open-meteo.com/v1/forecast", params={
-                "latitude":  coords["lat"],
-                "longitude": coords["lon"],
-                "current":   "uv_index,temperature_2m,relative_humidity_2m,"
-                             "weather_code,wind_speed_10m,apparent_temperature",
-                "timezone":  "Asia/Kolkata",
-            }, timeout=30)
-            response.raise_for_status()
-            data = response.json()
-            break  # Success, exit retry loop
-        except (requests.RequestException, requests.Timeout) as exc:
-            if attempt < retries - 1:
-                wait = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
-                print(f"⚠️  Retry {attempt + 1}/{retries} for {city_title} after {wait}s: {exc}")
-                import time
-                time.sleep(wait)
-            else:
-                print(f"❌ Failed to fetch {city_title} after {retries} attempts: {exc}")
-                raise
-
-    current = data["current"]
-
-    # Описание UV уровня
-    uv = current["uv_index"]
-    if uv <= 2:
-        uv_desc = "Low"
-    elif uv <= 5:
-        uv_desc = "Moderate"
-    elif uv <= 7:
-        uv_desc = "High"
-    elif uv <= 10:
-        uv_desc = "Very High"
-    else:
-        uv_desc = "Extreme"
-
-    # Описание погоды по WMO коду
-    weather_desc = WMO_CODES.get(current.get("weather_code", -1), "Unknown")
-
-    return {
-        "timestamp":    datetime.now().isoformat(),
-        "city":         city_title,
-        "uv_index":     uv,
-        "uv_desc":      uv_desc,
-        "temperature":  current["temperature_2m"],
-        "feels_like":   current["apparent_temperature"],
-        "humidity":     current["relative_humidity_2m"],
-        "wind_speed":   current["wind_speed_10m"],
-        "weather_desc": weather_desc,
-    }
-
+# ============================================================
+# OPEN-METEO API (free, no key required)
+# ============================================================
 
 # WMO Weather interpretation codes
 WMO_CODES = {
@@ -150,163 +94,139 @@ WMO_CODES = {
 }
 
 
+def fetch_uv(name: str, lat: float, lon: float, retries: int = 3) -> dict:
+    """Fetch UV Index and weather from Open-Meteo with retry."""
+    for attempt in range(retries):
+        try:
+            resp = requests.get("https://api.open-meteo.com/v1/forecast", params={
+                "latitude": lat,
+                "longitude": lon,
+                "current": "uv_index,temperature_2m,relative_humidity_2m,"
+                           "weather_code,wind_speed_10m,apparent_temperature",
+                "timezone": "auto",
+            }, timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+            break
+        except (requests.RequestException, requests.Timeout) as exc:
+            if attempt < retries - 1:
+                wait = 2 ** attempt
+                print(f"  ⚠️  Retry {attempt + 1}/{retries} for {name} after {wait}s: {exc}")
+                time.sleep(wait)
+            else:
+                raise
+
+    current = data["current"]
+    uv = current["uv_index"]
+
+    if uv <= 2:
+        uv_desc = "Low"
+    elif uv <= 5:
+        uv_desc = "Moderate"
+    elif uv <= 7:
+        uv_desc = "High"
+    elif uv <= 10:
+        uv_desc = "Very High"
+    else:
+        uv_desc = "Extreme"
+
+    return {
+        "uv_index":     uv,
+        "uv_desc":      uv_desc,
+        "temperature":  current["temperature_2m"],
+        "feels_like":   current["apparent_temperature"],
+        "humidity":     current["relative_humidity_2m"],
+        "wind_speed":   current["wind_speed_10m"],
+        "weather_desc": WMO_CODES.get(current.get("weather_code", -1), "Unknown"),
+        "timestamp":    datetime.now(timezone.utc).isoformat(),
+    }
+
+
 # ============================================================
-# БАЗА ДАННЫХ SQLite
+# SUPABASE — upsert UV data
 # ============================================================
 
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS uv_index (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp    TEXT NOT NULL,
-            city         TEXT NOT NULL,
-            uv_index     REAL,
-            uv_desc      TEXT,
-            temperature  REAL,
-            feels_like   REAL,
-            humidity     INTEGER,
-            wind_speed   REAL,
-            weather_desc TEXT
-        )
-    """)
-    conn.commit()
-    return conn
-
-
-def supabase_enabled() -> bool:
-    return bool(SUPABASE_URL and SUPABASE_KEY)
-
-
-def save_to_supabase(data: dict) -> None:
-    """Сохраняет запись в Supabase через REST API."""
-    if not supabase_enabled():
-        return
-
-    response = requests.post(
-        f"{SUPABASE_URL}/rest/v1/{SUPABASE_TABLE}",
+def upsert_uv_data(city_id: int, data: dict) -> None:
+    """Upsert UV data for a city (one row per city, overwritten each time)."""
+    resp = requests.post(
+        f"{SUPABASE_URL}/rest/v1/uv_data",
         headers={
-            "apikey": SUPABASE_KEY,
-            "Authorization": f"Bearer {SUPABASE_KEY}",
-            "Content-Type": "application/json",
-            "Prefer": "return=minimal",
+            **HEADERS,
+            "Prefer": "resolution=merge-duplicates",
         },
         json={
-            "timestamp": data["timestamp"],
-            "city": data["city"],
-            "uv_index": data["uv_index"],
-            "uv_desc": data["uv_desc"],
-            "temperature": data["temperature"],
-            "feels_like": data["feels_like"],
-            "humidity": data["humidity"],
-            "wind_speed": data["wind_speed"],
+            "city_id":      city_id,
+            "uv_index":     data["uv_index"],
+            "uv_desc":      data["uv_desc"],
+            "temperature":  data["temperature"],
+            "feels_like":   data["feels_like"],
+            "humidity":     data["humidity"],
+            "wind_speed":   data["wind_speed"],
             "weather_desc": data["weather_desc"],
+            "updated_at":   data["timestamp"],
         },
         timeout=15,
     )
-    response.raise_for_status()
-
-
-def get_uv_from_supabase(city: str = None) -> dict:
-    """Читает последнюю запись из Supabase."""
-    if not supabase_enabled():
-        return {}
-
-    params = {
-        "select": "id,timestamp,city,uv_index,uv_desc,temperature,feels_like,humidity,wind_speed,weather_desc",
-        "order": "timestamp.desc",
-        "limit": "1",
-    }
-    if city:
-        params["city"] = f"eq.{city.strip().title()}"
-
-    response = requests.get(
-        f"{SUPABASE_URL}/rest/v1/{SUPABASE_TABLE}",
-        headers={
-            "apikey": SUPABASE_KEY,
-            "Authorization": f"Bearer {SUPABASE_KEY}",
-        },
-        params=params,
-        timeout=15,
-    )
-    response.raise_for_status()
-    rows = response.json()
-    return rows[0] if rows else {}
-
-
-def save(data: dict):
-    """Сохраняет запись в SQLite, а при наличии ENV — и в Supabase."""
-    conn = init_db()
-    conn.execute(
-        "INSERT INTO uv_index "
-        "(timestamp, city, uv_index, uv_desc, temperature, feels_like, humidity, wind_speed, weather_desc) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (data["timestamp"], data["city"], data["uv_index"], data["uv_desc"],
-         data["temperature"], data["feels_like"], data["humidity"],
-         data["wind_speed"], data["weather_desc"])
-    )
-    conn.commit()
-    conn.close()
-
-    # Supabase — опционально, без падения локального сценария.
-    if supabase_enabled():
-        try:
-            save_to_supabase(data)
-            print(f"✅ Supabase: {data['city']} saved successfully")
-        except requests.RequestException as exc:
-            print(f"⚠️  Supabase save failed for {data['city']}: {exc}")
-
-
-# ============================================================
-# ЧТЕНИЕ ИЗ БД (для ваших макросов)
-# ============================================================
-
-def get_uv(city: str = None) -> dict:
-    """Последняя запись. Supabase -> fallback SQLite."""
-    if supabase_enabled():
-        try:
-            row = get_uv_from_supabase(city)
-            if row:
-                return row
-        except requests.RequestException as exc:
-            print(f"⚠️  Supabase read failed, fallback to SQLite: {exc}")
-
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    if city:
-        row = conn.execute(
-            "SELECT * FROM uv_index WHERE city = ? ORDER BY id DESC LIMIT 1",
-            (city.strip().title(),)
-        ).fetchone()
-    else:
-        row = conn.execute(
-            "SELECT * FROM uv_index ORDER BY id DESC LIMIT 1"
-        ).fetchone()
-    conn.close()
-    return dict(row) if row else {}
+    resp.raise_for_status()
 
 
 # ============================================================
 # MAIN
 # ============================================================
 
-def main():
-    city = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_CITY
-    data = fetch_uv(city)
-    save(data)
+def process_city(city: dict) -> dict:
+    """Fetch and save UV data for a single city. Returns weather data."""
+    data = fetch_uv(city["name"], city["lat"], city["lon"])
+    upsert_uv_data(city["id"], data)
+    return data
 
-    print(f"""
-☀️  UV Index — {data['city']}
-{'─' * 35}
-  UV Index:     {data['uv_index']} ({data['uv_desc']})
-  Temperature:  {data['temperature']}°C (feels {data['feels_like']}°C)
-  Humidity:     {data['humidity']}%
-  Wind:         {data['wind_speed']} km/h
-  Weather:      {data['weather_desc']}
-  Time:         {data['timestamp']}
-{'─' * 35}
-✅ Saved to {DB_PATH}
-""")
+
+def main():
+    if not supabase_enabled():
+        print("❌ SUPABASE_URL and SUPABASE_KEY are required.")
+        print("   Set them as environment variables or in .env file.")
+        sys.exit(1)
+
+    # Single city mode: python uv_india.py "Mumbai"
+    if len(sys.argv) > 1:
+        city_name = sys.argv[1]
+        city = get_city_by_name(city_name)
+        if not city:
+            print(f"❌ City '{city_name}' not found in database.")
+            print("   Add it via Admin UI or Supabase Dashboard.")
+            sys.exit(1)
+        cities = [city]
+    else:
+        # Batch mode: fetch all active cities
+        cities = get_active_cities()
+        if not cities:
+            print("⚠️  No active cities found. Add cities via Admin UI.")
+            sys.exit(0)
+
+    print(f"☀️  UV Weather Service — {len(cities)} cities")
+    print("─" * 50)
+
+    success_count = 0
+    failed = []
+
+    for city in cities:
+        try:
+            data = process_city(city)
+            print(f"  ✅ {city['name']:15s}  UV {data['uv_index']:4.1f} ({data['uv_desc']:9s})  {data['temperature']}°C  {data['weather_desc']}")
+            success_count += 1
+        except Exception as exc:
+            print(f"  ❌ {city['name']:15s}  {exc}")
+            failed.append(city["name"])
+        time.sleep(2)
+
+    print("─" * 50)
+    print(f"✅ Done: {success_count}/{len(cities)} cities updated")
+    if failed:
+        print(f"❌ Failed: {', '.join(failed)}")
+
+    # Exit with error only if ALL cities failed
+    if success_count == 0 and len(cities) > 0:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
