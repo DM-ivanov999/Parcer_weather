@@ -167,19 +167,19 @@
     <div class="card" style="grid-column: 1 / -1;">
       <h2>API Documentation</h2>
       <p style="color:#666;font-size:13px;margin-bottom:16px;">
-        Use the Supabase RPC endpoint to fetch UV data in your banners or applications.
+        Flexible weather API — request any combination of parameters (UV, temperature, humidity, etc.) for your banners or applications.
       </p>
 
-      <details style="margin-bottom:12px;">
-        <summary style="cursor:pointer;font-weight:600;padding:8px;background:#f8f9fa;border-radius:4px;user-select:none;">
-          📡 POST Request (Recommended)
+      <details open style="margin-bottom:12px;">
+        <summary style="cursor:pointer;font-weight:600;padding:8px;background:#e3f2fd;border-radius:4px;user-select:none;">
+          🌍 Single City — <code>get_weather_data</code>
         </summary>
         <div style="padding:12px;background:#f8f9fa;border-radius:4px;margin-top:8px;">
           <p style="font-size:12px;color:#666;margin-bottom:8px;"><strong>Endpoint:</strong></p>
-          <code style="display:block;background:#fff;padding:8px;border-radius:4px;font-size:11px;overflow-x:auto;margin-bottom:12px;" id="postEndpoint">https://YOUR_PROJECT_ID.supabase.co/rest/v1/rpc/get_uv_for_banner</code>
+          <code style="display:block;background:#fff;padding:8px;border-radius:4px;font-size:11px;overflow-x:auto;margin-bottom:12px;" class="api-endpoint">https://YOUR_PROJECT_ID.supabase.co/rest/v1/rpc/get_weather_data</code>
 
-          <p style="font-size:12px;color:#666;margin-bottom:8px;"><strong>JavaScript Example:</strong></p>
-          <pre style="background:#fff;padding:12px;border-radius:4px;font-size:11px;overflow-x:auto;margin:0;"><code>fetch('https://YOUR_PROJECT_ID.supabase.co/rest/v1/rpc/get_uv_for_banner', {
+          <p style="font-size:12px;color:#666;margin-bottom:8px;"><strong>Example: UV only</strong></p>
+          <pre style="background:#fff;padding:12px;border-radius:4px;font-size:11px;overflow-x:auto;margin-bottom:12px;"><code class="api-example">fetch('https://YOUR_PROJECT_ID.supabase.co/rest/v1/rpc/get_weather_data', {
   method: 'POST',
   headers: {
     'apikey': 'YOUR_ANON_KEY',
@@ -187,36 +187,86 @@
   },
   body: JSON.stringify({
     p_city: 'Mumbai',
-    p_fields: ['uv_index', 'uv_desc', 'temperature']  // optional
+    p_fields: ['uv_index', 'uv_desc']
   })
 })
 .then(r => r.json())
 .then(data => {
-  if (data.ok && data.uv_index >= 6) {
-    console.log(`${data.city}: UV ${data.uv_index} (${data.uv_desc})`);
-  }
+  if (data.ok) console.log(`${data.city}: UV ${data.uv_index}`);
+});</code></pre>
+
+          <p style="font-size:12px;color:#666;margin-bottom:8px;"><strong>Example: Temperature & Humidity</strong></p>
+          <pre style="background:#fff;padding:12px;border-radius:4px;font-size:11px;overflow-x:auto;margin:0;"><code class="api-example">// Request only temperature and humidity
+body: JSON.stringify({
+  p_city: 'Delhi',
+  p_fields: ['temperature', 'humidity', 'weather_desc']
+})</code></pre>
+        </div>
+      </details>
+
+      <details style="margin-bottom:12px;">
+        <summary style="cursor:pointer;font-weight:600;padding:8px;background:#e3f2fd;border-radius:4px;user-select:none;">
+          🗺️ Multiple Cities — <code>get_weather_data_batch</code>
+        </summary>
+        <div style="padding:12px;background:#f8f9fa;border-radius:4px;margin-top:8px;">
+          <p style="font-size:12px;color:#666;margin-bottom:8px;"><strong>Endpoint:</strong></p>
+          <code style="display:block;background:#fff;padding:8px;border-radius:4px;font-size:11px;overflow-x:auto;margin-bottom:12px;" class="api-endpoint">https://YOUR_PROJECT_ID.supabase.co/rest/v1/rpc/get_weather_data_batch</code>
+
+          <p style="font-size:12px;color:#666;margin-bottom:8px;"><strong>Example:</strong></p>
+          <pre style="background:#fff;padding:12px;border-radius:4px;font-size:11px;overflow-x:auto;margin:0;"><code class="api-example">fetch('https://YOUR_PROJECT_ID.supabase.co/rest/v1/rpc/get_weather_data_batch', {
+  method: 'POST',
+  headers: {
+    'apikey': 'YOUR_ANON_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    p_cities: ['Mumbai', 'Delhi', 'Bangalore'],
+    p_fields: ['uv_index', 'temperature']  // optional
+  })
+})
+.then(r => r.json())
+.then(response => {
+  console.log(`Loaded ${response.count} cities`);
+  response.data.forEach(city => {
+    if (city.ok) console.log(`${city.city}: ${city.temperature}°C`);
+  });
+});</code></pre>
+        </div>
+      </details>
+
+      <details style="margin-bottom:12px;">
+        <summary style="cursor:pointer;font-weight:600;padding:8px;background:#e3f2fd;border-radius:4px;user-select:none;">
+          🏴 All Cities from Country — <code>get_weather_data_by_country</code>
+        </summary>
+        <div style="padding:12px;background:#f8f9fa;border-radius:4px;margin-top:8px;">
+          <p style="font-size:12px;color:#666;margin-bottom:8px;"><strong>Endpoint:</strong></p>
+          <code style="display:block;background:#fff;padding:8px;border-radius:4px;font-size:11px;overflow-x:auto;margin-bottom:12px;" class="api-endpoint">https://YOUR_PROJECT_ID.supabase.co/rest/v1/rpc/get_weather_data_by_country</code>
+
+          <p style="font-size:12px;color:#666;margin-bottom:8px;"><strong>Example:</strong></p>
+          <pre style="background:#fff;padding:12px;border-radius:4px;font-size:11px;overflow-x:auto;margin:0;"><code class="api-example">fetch('https://YOUR_PROJECT_ID.supabase.co/rest/v1/rpc/get_weather_data_by_country', {
+  method: 'POST',
+  headers: {
+    'apikey': 'YOUR_ANON_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    p_country_code: 'IN',  // ISO 3166-1 alpha-2
+    p_fields: ['uv_index', 'temperature']  // optional
+  })
+})
+.then(r => r.json())
+.then(response => {
+  console.log(`${response.country} (${response.code}): ${response.count} cities`);
+  response.data.forEach(city => {
+    console.log(`${city.city}: UV ${city.uv_index}, ${city.temperature}°C`);
+  });
 });</code></pre>
         </div>
       </details>
 
       <details style="margin-bottom:12px;">
         <summary style="cursor:pointer;font-weight:600;padding:8px;background:#f8f9fa;border-radius:4px;user-select:none;">
-          🔗 GET Request (Simple)
-        </summary>
-        <div style="padding:12px;background:#f8f9fa;border-radius:4px;margin-top:8px;">
-          <p style="font-size:12px;color:#666;margin-bottom:8px;"><strong>URL Pattern:</strong></p>
-          <code style="display:block;background:#fff;padding:8px;border-radius:4px;font-size:11px;overflow-x:auto;margin-bottom:12px;">https://YOUR_PROJECT_ID.supabase.co/rest/v1/rpc/get_uv_for_banner?p_city=Mumbai</code>
-
-          <p style="font-size:12px;color:#666;margin-bottom:8px;"><strong>Example with DSP macro:</strong></p>
-          <code style="display:block;background:#fff;padding:8px;border-radius:4px;font-size:11px;overflow-x:auto;">https://YOUR_PROJECT_ID.supabase.co/rest/v1/rpc/get_uv_for_banner?p_city={city}</code>
-
-          <p style="font-size:11px;color:#999;margin-top:8px;">⚠️ Don't forget to add <code>apikey</code> header!</p>
-        </div>
-      </details>
-
-      <details style="margin-bottom:12px;">
-        <summary style="cursor:pointer;font-weight:600;padding:8px;background:#f8f9fa;border-radius:4px;user-select:none;">
-          🎯 Available Fields (for filtering)
+          🎯 Available Fields
         </summary>
         <div style="padding:12px;background:#f8f9fa;border-radius:4px;margin-top:8px;">
           <p style="font-size:12px;margin-bottom:8px;">Use <code>p_fields</code> parameter to request only specific fields:</p>
@@ -230,34 +280,57 @@
             <li><code>weather_desc</code> — Weather description (Clear sky, Rain, etc.)</li>
             <li><code>updated_at</code> — Last update timestamp</li>
           </ul>
-          <p style="font-size:11px;color:#999;margin-top:8px;">💡 If not specified, all fields are returned.</p>
+          <p style="font-size:11px;color:#999;margin-top:8px;">💡 If <code>p_fields</code> is not specified or <code>null</code>, all fields are returned.</p>
+        </div>
+      </details>
+
+      <details style="margin-bottom:12px;">
+        <summary style="cursor:pointer;font-weight:600;padding:8px;background:#f8f9fa;border-radius:4px;user-select:none;">
+          🔗 Legacy Endpoint (still works)
+        </summary>
+        <div style="padding:12px;background:#f8f9fa;border-radius:4px;margin-top:8px;">
+          <p style="font-size:12px;margin-bottom:8px;">Old <code>get_uv_for_banner</code> endpoint still works for backward compatibility:</p>
+          <code style="display:block;background:#fff;padding:8px;border-radius:4px;font-size:11px;overflow-x:auto;">https://YOUR_PROJECT_ID.supabase.co/rest/v1/rpc/get_uv_for_banner?p_city=Mumbai</code>
+          <p style="font-size:11px;color:#999;margin-top:8px;">⚠️ Use new <code>get_weather_data</code> for better flexibility.</p>
         </div>
       </details>
 
       <details>
         <summary style="cursor:pointer;font-weight:600;padding:8px;background:#f8f9fa;border-radius:4px;user-select:none;">
-          📄 Response Example
+          📄 Response Examples
         </summary>
         <div style="padding:12px;background:#f8f9fa;border-radius:4px;margin-top:8px;">
-          <p style="font-size:12px;color:#666;margin-bottom:8px;"><strong>Success:</strong></p>
+          <p style="font-size:12px;color:#666;margin-bottom:8px;"><strong>Single city success:</strong></p>
           <pre style="background:#fff;padding:12px;border-radius:4px;font-size:11px;overflow-x:auto;margin-bottom:12px;"><code>{
   "ok": true,
   "city": "Mumbai",
   "country": "India",
   "uv_index": 7.5,
-  "uv_desc": "High",
-  "temperature": 32.1,
-  "feels_like": 35.2,
-  "humidity": 65,
-  "wind_speed": 12.5,
-  "weather_desc": "Partly cloudy",
-  "updated_at": "2024-02-12T14:30:00+00:00"
+  "temperature": 32.1
 }</code></pre>
 
-          <p style="font-size:12px;color:#666;margin-bottom:8px;"><strong>Error (city not found):</strong></p>
+          <p style="font-size:12px;color:#666;margin-bottom:8px;"><strong>Batch response:</strong></p>
+          <pre style="background:#fff;padding:12px;border-radius:4px;font-size:11px;overflow-x:auto;margin-bottom:12px;"><code>{
+  "ok": true,
+  "count": 3,
+  "data": [
+    { "ok": true, "city": "Mumbai", "country": "India", "uv_index": 7.5 },
+    { "ok": true, "city": "Delhi", "country": "India", "uv_index": 6.2 },
+    { "ok": false, "error": "City \"Unknown\" not found or inactive" }
+  ]
+}</code></pre>
+
+          <p style="font-size:12px;color:#666;margin-bottom:8px;"><strong>Country response:</strong></p>
           <pre style="background:#fff;padding:12px;border-radius:4px;font-size:11px;overflow-x:auto;margin:0;"><code>{
-  "ok": false,
-  "error": "City \"Unknown\" not found or inactive"
+  "ok": true,
+  "country": "India",
+  "code": "IN",
+  "count": 17,
+  "data": [
+    { "city": "Ahmedabad", "uv_index": 8.1, "temperature": 35.2 },
+    { "city": "Bangalore", "uv_index": 6.5, "temperature": 28.4 },
+    ...
+  ]
 }</code></pre>
         </div>
       </details>
@@ -322,7 +395,7 @@ function updateApiExamples() {
   if (!s.url || !s.key) return;
 
   // Update all code examples with real URL and key
-  const examples = document.querySelectorAll('#postEndpoint, pre code');
+  const examples = document.querySelectorAll('.api-endpoint, .api-example, code');
   examples.forEach(el => {
     el.textContent = el.textContent
       .replace(/YOUR_PROJECT_ID\.supabase\.co/g, s.url.replace('https://', '').replace('http://', ''))
