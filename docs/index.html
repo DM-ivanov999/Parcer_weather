@@ -87,7 +87,10 @@
   <div class="grid">
     <!-- Current UV Data -->
     <div class="card" id="dataCard" style="grid-column: 1 / -1;">
-      <h2>Current UV Data</h2>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <h2 style="margin:0;">Current UV Data</h2>
+        <span id="lastUpdate" style="font-size:11px;color:#999;"></span>
+      </div>
       <table>
         <thead><tr><th>City</th><th>Country</th><th>UV Index</th><th>Temp</th><th>Humidity</th><th>Wind</th><th>Weather</th><th>Updated</th></tr></thead>
         <tbody id="dataBody"><tr><td colspan="8" style="color:#999">Connect to load data...</td></tr></tbody>
@@ -205,7 +208,26 @@ async function loadData() {
 
   if (error) { setStatus('Error: ' + error.message); return; }
   const tbody = document.getElementById('dataBody');
-  if (!data.length) { tbody.innerHTML = '<tr><td colspan="8" style="color:#999">No data yet. Run the parser first.</td></tr>'; return; }
+  if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="color:#999">No data yet. Run the parser first.</td></tr>';
+    document.getElementById('lastUpdate').textContent = '';
+    return;
+  }
+
+  // Find most recent update
+  const timestamps = data.map(r => r.updated_at).filter(Boolean);
+  if (timestamps.length > 0) {
+    const latest = new Date(Math.max(...timestamps.map(t => new Date(t))));
+    const formatted = latest.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+    const ago = timeAgo(latest.toISOString());
+    document.getElementById('lastUpdate').textContent = `Last update: ${formatted} (${ago})`;
+  }
 
   tbody.innerHTML = data.map(r => {
     const cls = (r.uv_desc || 'low').toLowerCase().replace(' ', '');
