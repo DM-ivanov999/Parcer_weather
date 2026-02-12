@@ -162,6 +162,106 @@
         <tbody id="mappingBody"><tr><td colspan="3" style="color:#999">Loading...</td></tr></tbody>
       </table>
     </div>
+
+    <!-- API Documentation -->
+    <div class="card" style="grid-column: 1 / -1;">
+      <h2>API Documentation</h2>
+      <p style="color:#666;font-size:13px;margin-bottom:16px;">
+        Use the Supabase RPC endpoint to fetch UV data in your banners or applications.
+      </p>
+
+      <details style="margin-bottom:12px;">
+        <summary style="cursor:pointer;font-weight:600;padding:8px;background:#f8f9fa;border-radius:4px;user-select:none;">
+          📡 POST Request (Recommended)
+        </summary>
+        <div style="padding:12px;background:#f8f9fa;border-radius:4px;margin-top:8px;">
+          <p style="font-size:12px;color:#666;margin-bottom:8px;"><strong>Endpoint:</strong></p>
+          <code style="display:block;background:#fff;padding:8px;border-radius:4px;font-size:11px;overflow-x:auto;margin-bottom:12px;" id="postEndpoint">https://YOUR_PROJECT_ID.supabase.co/rest/v1/rpc/get_uv_for_banner</code>
+
+          <p style="font-size:12px;color:#666;margin-bottom:8px;"><strong>JavaScript Example:</strong></p>
+          <pre style="background:#fff;padding:12px;border-radius:4px;font-size:11px;overflow-x:auto;margin:0;"><code>fetch('https://YOUR_PROJECT_ID.supabase.co/rest/v1/rpc/get_uv_for_banner', {
+  method: 'POST',
+  headers: {
+    'apikey': 'YOUR_ANON_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    p_city: 'Mumbai',
+    p_fields: ['uv_index', 'uv_desc', 'temperature']  // optional
+  })
+})
+.then(r => r.json())
+.then(data => {
+  if (data.ok && data.uv_index >= 6) {
+    console.log(`${data.city}: UV ${data.uv_index} (${data.uv_desc})`);
+  }
+});</code></pre>
+        </div>
+      </details>
+
+      <details style="margin-bottom:12px;">
+        <summary style="cursor:pointer;font-weight:600;padding:8px;background:#f8f9fa;border-radius:4px;user-select:none;">
+          🔗 GET Request (Simple)
+        </summary>
+        <div style="padding:12px;background:#f8f9fa;border-radius:4px;margin-top:8px;">
+          <p style="font-size:12px;color:#666;margin-bottom:8px;"><strong>URL Pattern:</strong></p>
+          <code style="display:block;background:#fff;padding:8px;border-radius:4px;font-size:11px;overflow-x:auto;margin-bottom:12px;">https://YOUR_PROJECT_ID.supabase.co/rest/v1/rpc/get_uv_for_banner?p_city=Mumbai</code>
+
+          <p style="font-size:12px;color:#666;margin-bottom:8px;"><strong>Example with DSP macro:</strong></p>
+          <code style="display:block;background:#fff;padding:8px;border-radius:4px;font-size:11px;overflow-x:auto;">https://YOUR_PROJECT_ID.supabase.co/rest/v1/rpc/get_uv_for_banner?p_city={city}</code>
+
+          <p style="font-size:11px;color:#999;margin-top:8px;">⚠️ Don't forget to add <code>apikey</code> header!</p>
+        </div>
+      </details>
+
+      <details style="margin-bottom:12px;">
+        <summary style="cursor:pointer;font-weight:600;padding:8px;background:#f8f9fa;border-radius:4px;user-select:none;">
+          🎯 Available Fields (for filtering)
+        </summary>
+        <div style="padding:12px;background:#f8f9fa;border-radius:4px;margin-top:8px;">
+          <p style="font-size:12px;margin-bottom:8px;">Use <code>p_fields</code> parameter to request only specific fields:</p>
+          <ul style="font-size:12px;margin:0;padding-left:20px;">
+            <li><code>uv_index</code> — UV index value (number)</li>
+            <li><code>uv_desc</code> — UV description (Low, Moderate, High, Very High, Extreme)</li>
+            <li><code>temperature</code> — Temperature in °C</li>
+            <li><code>feels_like</code> — Apparent temperature in °C</li>
+            <li><code>humidity</code> — Relative humidity (%)</li>
+            <li><code>wind_speed</code> — Wind speed (km/h)</li>
+            <li><code>weather_desc</code> — Weather description (Clear sky, Rain, etc.)</li>
+            <li><code>updated_at</code> — Last update timestamp</li>
+          </ul>
+          <p style="font-size:11px;color:#999;margin-top:8px;">💡 If not specified, all fields are returned.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary style="cursor:pointer;font-weight:600;padding:8px;background:#f8f9fa;border-radius:4px;user-select:none;">
+          📄 Response Example
+        </summary>
+        <div style="padding:12px;background:#f8f9fa;border-radius:4px;margin-top:8px;">
+          <p style="font-size:12px;color:#666;margin-bottom:8px;"><strong>Success:</strong></p>
+          <pre style="background:#fff;padding:12px;border-radius:4px;font-size:11px;overflow-x:auto;margin-bottom:12px;"><code>{
+  "ok": true,
+  "city": "Mumbai",
+  "country": "India",
+  "uv_index": 7.5,
+  "uv_desc": "High",
+  "temperature": 32.1,
+  "feels_like": 35.2,
+  "humidity": 65,
+  "wind_speed": 12.5,
+  "weather_desc": "Partly cloudy",
+  "updated_at": "2024-02-12T14:30:00+00:00"
+}</code></pre>
+
+          <p style="font-size:12px;color:#666;margin-bottom:8px;"><strong>Error (city not found):</strong></p>
+          <pre style="background:#fff;padding:12px;border-radius:4px;font-size:11px;overflow-x:auto;margin:0;"><code>{
+  "ok": false,
+  "error": "City \"Unknown\" not found or inactive"
+}</code></pre>
+        </div>
+      </details>
+    </div>
   </div>
 </div>
 
@@ -201,6 +301,7 @@ function connect() {
   document.getElementById('setupPanel').classList.add('connected');
   document.getElementById('setupPanel').querySelector('h2').textContent = 'Connected to Supabase';
   document.getElementById('actionsBar').style.display = 'flex';
+  updateApiExamples();
   refreshAll();
 }
 
@@ -214,6 +315,20 @@ function clearSettings() {
 
 function setStatus(msg) {
   document.getElementById('statusText').textContent = msg;
+}
+
+function updateApiExamples() {
+  const s = getSettings();
+  if (!s.url || !s.key) return;
+
+  // Update all code examples with real URL and key
+  const examples = document.querySelectorAll('#postEndpoint, pre code');
+  examples.forEach(el => {
+    el.textContent = el.textContent
+      .replace(/YOUR_PROJECT_ID\.supabase\.co/g, s.url.replace('https://', '').replace('http://', ''))
+      .replace(/https:\/\/YOUR_PROJECT_ID\.supabase\.co/g, s.url)
+      .replace(/YOUR_ANON_KEY/g, s.key);
+  });
 }
 
 // ─── Data ──────────────────────────────────────────────
