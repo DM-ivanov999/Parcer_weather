@@ -149,7 +149,7 @@ def fetch_uv(name: str, lat: float, lon: float, retries: int = 3) -> dict:
 def upsert_uv_data(city_id: int, data: dict) -> None:
     """Upsert UV data for a city (one row per city, overwritten each time)."""
     resp = requests.post(
-        f"{SUPABASE_URL}/rest/v1/uv_data",
+        f"{SUPABASE_URL}/rest/v1/uv_data?on_conflict=city_id",
         headers={
             **HEADERS,
             "Prefer": "resolution=merge-duplicates",
