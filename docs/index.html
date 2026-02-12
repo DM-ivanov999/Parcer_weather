@@ -27,6 +27,11 @@
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid #eee; }
   th { font-weight: 600; color: #666; font-size: 11px; text-transform: uppercase; }
+  th.sortable { cursor: pointer; user-select: none; position: relative; padding-right: 20px; }
+  th.sortable:hover { background: #f8f9fa; }
+  th.sortable::after { content: '⇅'; position: absolute; right: 6px; opacity: 0.3; font-size: 10px; }
+  th.sortable.asc::after { content: '↑'; opacity: 1; }
+  th.sortable.desc::after { content: '↓'; opacity: 1; }
   .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
   .badge-green { background: #d4edda; color: #155724; }
   .badge-gray { background: #e9ecef; color: #6c757d; }
@@ -92,7 +97,16 @@
         <span id="lastUpdate" style="font-size:11px;color:#999;"></span>
       </div>
       <table>
-        <thead><tr><th>City</th><th>Country</th><th>UV Index</th><th>Temp</th><th>Humidity</th><th>Wind</th><th>Weather</th><th>Updated</th></tr></thead>
+        <thead><tr>
+          <th class="sortable" onclick="sortData('city')">City</th>
+          <th class="sortable" onclick="sortData('country')">Country</th>
+          <th class="sortable" onclick="sortData('uv')">UV Index</th>
+          <th class="sortable" onclick="sortData('temp')">Temp</th>
+          <th class="sortable" onclick="sortData('humidity')">Humidity</th>
+          <th class="sortable" onclick="sortData('wind')">Wind</th>
+          <th class="sortable" onclick="sortData('weather')">Weather</th>
+          <th class="sortable" onclick="sortData('updated')">Updated</th>
+        </tr></thead>
         <tbody id="dataBody"><tr><td colspan="8" style="color:#999">Connect to load data...</td></tr></tbody>
       </table>
     </div>
@@ -157,6 +171,9 @@ let ghToken = '';
 let ghRepo = '';
 let allCities = [];
 let allCountries = [];
+let uvData = [];
+let sortColumn = 'updated';
+let sortDirection = 'desc';
 
 function getSettings() {
   return {
@@ -211,8 +228,12 @@ async function loadData() {
   if (!data.length) {
     tbody.innerHTML = '<tr><td colspan="8" style="color:#999">No data yet. Run the parser first.</td></tr>';
     document.getElementById('lastUpdate').textContent = '';
+    uvData = [];
     return;
   }
+
+  // Store data globally
+  uvData = data;
 
   // Find most recent update
   const timestamps = data.map(r => r.updated_at).filter(Boolean);
@@ -229,7 +250,80 @@ async function loadData() {
     document.getElementById('lastUpdate').textContent = `Last update: ${formatted} (${ago})`;
   }
 
-  tbody.innerHTML = data.map(r => {
+  // Render sorted data
+  renderDataTable();
+}
+
+function renderDataTable() {
+  const tbody = document.getElementById('dataBody');
+  if (!uvData.length) return;
+
+  // Sort data
+  const sorted = [...uvData].sort((a, b) => {
+    let aVal, bVal;
+
+    switch (sortColumn) {
+      case 'city':
+        aVal = a.cities?.name || '';
+        bVal = b.cities?.name || '';
+        break;
+      case 'country':
+        aVal = a.cities?.countries?.name || '';
+        bVal = b.cities?.countries?.name || '';
+        break;
+      case 'uv':
+        aVal = a.uv_index || 0;
+        bVal = b.uv_index || 0;
+        break;
+      case 'temp':
+        aVal = a.temperature || 0;
+        bVal = b.temperature || 0;
+        break;
+      case 'humidity':
+        aVal = a.humidity || 0;
+        bVal = b.humidity || 0;
+        break;
+      case 'wind':
+        aVal = a.wind_speed || 0;
+        bVal = b.wind_speed || 0;
+        break;
+      case 'weather':
+        aVal = a.weather_desc || '';
+        bVal = b.weather_desc || '';
+        break;
+      case 'updated':
+        aVal = new Date(a.updated_at || 0).getTime();
+        bVal = new Date(b.updated_at || 0).getTime();
+        break;
+      default:
+        return 0;
+    }
+
+    // Compare
+    let result = 0;
+    if (typeof aVal === 'string') {
+      result = aVal.localeCompare(bVal);
+    } else {
+      result = aVal - bVal;
+    }
+
+    return sortDirection === 'asc' ? result : -result;
+  });
+
+  // Update sort indicators
+  document.querySelectorAll('#dataCard th.sortable').forEach(th => {
+    th.classList.remove('asc', 'desc');
+  });
+  const activeHeader = Array.from(document.querySelectorAll('#dataCard th.sortable')).find(th => {
+    const onclick = th.getAttribute('onclick');
+    return onclick && onclick.includes(`'${sortColumn}'`);
+  });
+  if (activeHeader) {
+    activeHeader.classList.add(sortDirection);
+  }
+
+  // Render rows
+  tbody.innerHTML = sorted.map(r => {
     const cls = (r.uv_desc || 'low').toLowerCase().replace(' ', '');
     const ago = timeAgo(r.updated_at);
     const country = r.cities?.countries?.name || '?';
@@ -244,6 +338,18 @@ async function loadData() {
       <td style="color:#999;font-size:11px">${ago}</td>
     </tr>`;
   }).join('');
+}
+
+function sortData(column) {
+  if (sortColumn === column) {
+    // Toggle direction
+    sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+  } else {
+    // New column, default to descending (except for text columns)
+    sortColumn = column;
+    sortDirection = ['city', 'country', 'weather'].includes(column) ? 'asc' : 'desc';
+  }
+  renderDataTable();
 }
 
 // ─── Countries ─────────────────────────────────────────
