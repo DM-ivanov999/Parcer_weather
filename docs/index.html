@@ -89,8 +89,22 @@
     <div class="card" id="dataCard" style="grid-column: 1 / -1;">
       <h2>Current UV Data</h2>
       <table>
-        <thead><tr><th>City</th><th>UV Index</th><th>Temp</th><th>Humidity</th><th>Wind</th><th>Weather</th><th>Updated</th></tr></thead>
-        <tbody id="dataBody"><tr><td colspan="7" style="color:#999">Connect to load data...</td></tr></tbody>
+        <thead><tr><th>City</th><th>Country</th><th>UV Index</th><th>Temp</th><th>Humidity</th><th>Wind</th><th>Weather</th><th>Updated</th></tr></thead>
+        <tbody id="dataBody"><tr><td colspan="8" style="color:#999">Connect to load data...</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- Countries -->
+    <div class="card">
+      <h2>Countries</h2>
+      <div class="form-row">
+        <div class="form-group"><label>Name</label><input id="countryName" placeholder="India"></div>
+        <div class="form-group"><label>Code</label><input id="countryCode" placeholder="IN" maxlength="2" style="text-transform:uppercase"></div>
+        <button class="btn btn-primary" onclick="addCountry()" style="align-self:end;">Add</button>
+      </div>
+      <table>
+        <thead><tr><th>Country</th><th>Code</th><th>Status</th><th>Cities</th><th></th></tr></thead>
+        <tbody id="countriesBody"><tr><td colspan="5" style="color:#999">Loading...</td></tr></tbody>
       </table>
     </div>
 
@@ -98,14 +112,19 @@
     <div class="card">
       <h2>Cities</h2>
       <div class="form-row">
-        <div class="form-group"><label>Name</label><input id="cityName" placeholder="City name"></div>
+        <div class="form-group"><label>Name</label><input id="cityName" placeholder="Mumbai"></div>
+        <div class="form-group"><label>Country</label>
+          <select id="cityCountrySelect" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;font-size:13px;">
+            <option value="">Select country...</option>
+          </select>
+        </div>
         <div class="form-group"><label>Lat</label><input id="cityLat" placeholder="28.61" type="number" step="any"></div>
         <div class="form-group"><label>Lon</label><input id="cityLon" placeholder="77.20" type="number" step="any"></div>
         <button class="btn btn-primary" onclick="addCity()" style="align-self:end;">Add</button>
       </div>
       <table>
-        <thead><tr><th>City</th><th>Lat</th><th>Lon</th><th>Status</th><th></th></tr></thead>
-        <tbody id="citiesBody"><tr><td colspan="5" style="color:#999">Loading...</td></tr></tbody>
+        <thead><tr><th>City</th><th>Country</th><th>Lat</th><th>Lon</th><th>Status</th><th></th></tr></thead>
+        <tbody id="citiesBody"><tr><td colspan="6" style="color:#999">Loading...</td></tr></tbody>
       </table>
     </div>
 
@@ -134,6 +153,7 @@ let sb = null;
 let ghToken = '';
 let ghRepo = '';
 let allCities = [];
+let allCountries = [];
 
 function getSettings() {
   return {
@@ -180,18 +200,20 @@ function setStatus(msg) {
 async function loadData() {
   const { data, error } = await sb
     .from('uv_data')
-    .select('*, cities(name)')
+    .select('*, cities(name, countries(name))')
     .order('city_id');
 
   if (error) { setStatus('Error: ' + error.message); return; }
   const tbody = document.getElementById('dataBody');
-  if (!data.length) { tbody.innerHTML = '<tr><td colspan="7" style="color:#999">No data yet. Run the parser first.</td></tr>'; return; }
+  if (!data.length) { tbody.innerHTML = '<tr><td colspan="8" style="color:#999">No data yet. Run the parser first.</td></tr>'; return; }
 
   tbody.innerHTML = data.map(r => {
     const cls = (r.uv_desc || 'low').toLowerCase().replace(' ', '');
     const ago = timeAgo(r.updated_at);
+    const country = r.cities?.countries?.name || '?';
     return `<tr>
       <td><strong>${r.cities?.name || '?'}</strong></td>
+      <td style="color:#999;font-size:11px">${country}</td>
       <td><span class="badge badge-${cls}">${r.uv_index} ${r.uv_desc}</span></td>
       <td>${r.temperature}°C</td>
       <td>${r.humidity}%</td>
@@ -202,11 +224,75 @@ async function loadData() {
   }).join('');
 }
 
+// ─── Countries ─────────────────────────────────────────
+async function loadCountries() {
+  const { data, error } = await sb
+    .from('countries')
+    .select('*, cities(id)')
+    .order('active', { ascending: false })
+    .order('name');
+
+  if (error) { setStatus('Error: ' + error.message); return; }
+  allCountries = data;
+  updateCountrySelect();
+
+  const tbody = document.getElementById('countriesBody');
+  if (!data.length) { tbody.innerHTML = '<tr><td colspan="5" style="color:#999">No countries added yet.</td></tr>'; return; }
+
+  tbody.innerHTML = data.map(co => {
+    const cityCount = co.cities?.length || 0;
+    return `<tr>
+      <td><strong>${co.name}</strong></td>
+      <td style="font-family:monospace;color:#999">${co.code}</td>
+      <td>
+        <span class="badge ${co.active ? 'badge-green' : 'badge-gray'} clickable"
+              onclick="toggleCountry(${co.id}, ${!co.active})">${co.active ? 'Active' : 'Inactive'}</span>
+      </td>
+      <td style="color:#999;font-size:11px">${cityCount} cities</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteCountry(${co.id})">x</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function updateCountrySelect() {
+  const sel = document.getElementById('cityCountrySelect');
+  sel.innerHTML = '<option value="">Select country...</option>' +
+    allCountries.map(co => `<option value="${co.id}">${co.name} (${co.code})</option>`).join('');
+}
+
+async function addCountry() {
+  const name = document.getElementById('countryName').value.trim();
+  const code = document.getElementById('countryCode').value.trim().toUpperCase();
+  if (!name || !code) { alert('Fill all fields'); return; }
+  if (code.length !== 2) { alert('Code must be 2 letters (ISO 3166-1)'); return; }
+
+  const { error } = await sb.from('countries').insert({ name, code, active: true });
+  if (error) { alert('Error: ' + error.message); return; }
+  document.getElementById('countryName').value = '';
+  document.getElementById('countryCode').value = '';
+  loadCountries();
+  setStatus(`Country "${name}" added`);
+}
+
+async function toggleCountry(id, active) {
+  await sb.from('countries').update({ active }).eq('id', id);
+  loadCountries();
+  loadData(); // Refresh UV data as countries affect visibility
+}
+
+async function deleteCountry(id) {
+  if (!confirm('Delete this country and all its cities?')) return;
+  await sb.from('countries').delete().eq('id', id);
+  loadCountries();
+  loadCities();
+  loadData();
+}
+
 // ─── Cities ────────────────────────────────────────────
 async function loadCities() {
   const { data, error } = await sb
     .from('cities')
-    .select('*')
+    .select('*, countries(name)')
     .order('name');
 
   if (error) { setStatus('Error: ' + error.message); return; }
@@ -214,18 +300,22 @@ async function loadCities() {
   updateCitySelect();
 
   const tbody = document.getElementById('citiesBody');
-  if (!data.length) { tbody.innerHTML = '<tr><td colspan="5" style="color:#999">No cities added yet.</td></tr>'; return; }
+  if (!data.length) { tbody.innerHTML = '<tr><td colspan="6" style="color:#999">No cities added yet.</td></tr>'; return; }
 
-  tbody.innerHTML = data.map(c => `<tr>
-    <td>${c.name}</td>
-    <td>${c.lat}</td>
-    <td>${c.lon}</td>
-    <td>
-      <span class="badge ${c.active ? 'badge-green' : 'badge-gray'} clickable"
-            onclick="toggleCity(${c.id}, ${!c.active})">${c.active ? 'Active' : 'Inactive'}</span>
-    </td>
-    <td><button class="btn btn-danger btn-sm" onclick="deleteCity(${c.id})">x</button></td>
-  </tr>`).join('');
+  tbody.innerHTML = data.map(c => {
+    const country = c.countries?.name || '?';
+    return `<tr>
+      <td><strong>${c.name}</strong></td>
+      <td style="color:#999;font-size:11px">${country}</td>
+      <td>${c.lat}</td>
+      <td>${c.lon}</td>
+      <td>
+        <span class="badge ${c.active ? 'badge-green' : 'badge-gray'} clickable"
+              onclick="toggleCity(${c.id}, ${!c.active})">${c.active ? 'Active' : 'Inactive'}</span>
+      </td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteCity(${c.id})">x</button></td>
+    </tr>`;
+  }).join('');
 }
 
 function updateCitySelect() {
@@ -236,16 +326,18 @@ function updateCitySelect() {
 
 async function addCity() {
   const name = document.getElementById('cityName').value.trim();
+  const country_id = parseInt(document.getElementById('cityCountrySelect').value);
   const lat = parseFloat(document.getElementById('cityLat').value);
   const lon = parseFloat(document.getElementById('cityLon').value);
-  if (!name || isNaN(lat) || isNaN(lon)) { alert('Fill all fields'); return; }
+  if (!name || !country_id || isNaN(lat) || isNaN(lon)) { alert('Fill all fields'); return; }
 
-  const { error } = await sb.from('cities').insert({ name, lat, lon, active: true });
+  const { error } = await sb.from('cities').insert({ name, country_id, lat, lon, active: true });
   if (error) { alert('Error: ' + error.message); return; }
   document.getElementById('cityName').value = '';
   document.getElementById('cityLat').value = '';
   document.getElementById('cityLon').value = '';
   loadCities();
+  loadCountries(); // Refresh city count
   setStatus(`City "${name}" added`);
 }
 
@@ -330,7 +422,7 @@ function timeAgo(ts) {
 
 async function refreshAll() {
   setStatus('Loading...');
-  await Promise.all([loadData(), loadCities(), loadMapping()]);
+  await Promise.all([loadData(), loadCountries(), loadCities(), loadMapping()]);
   setStatus('Last refresh: ' + new Date().toLocaleTimeString());
 }
 

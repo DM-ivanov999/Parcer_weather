@@ -38,15 +38,25 @@ def supabase_enabled() -> bool:
 # ============================================================
 
 def get_active_cities() -> list[dict]:
-    """Read active cities from Supabase cities table."""
+    """Read active cities from active countries in Supabase."""
     resp = requests.get(
         f"{SUPABASE_URL}/rest/v1/cities",
         headers=HEADERS,
-        params={"active": "eq.true", "select": "id,name,lat,lon", "order": "name.asc"},
+        params={
+            "active": "eq.true",
+            "select": "id,name,lat,lon,countries!inner(name,active)",
+            "countries.active": "eq.true",
+            "order": "name.asc"
+        },
         timeout=15,
     )
     resp.raise_for_status()
-    return resp.json()
+    cities = resp.json()
+    # Flatten nested country data
+    for city in cities:
+        city["country"] = city.get("countries", {}).get("name", "Unknown")
+        city.pop("countries", None)
+    return cities
 
 
 def get_city_by_name(name: str) -> dict | None:
@@ -212,7 +222,8 @@ def main():
     for city in cities:
         try:
             data = process_city(city)
-            print(f"  ✅ {city['name']:15s}  UV {data['uv_index']:4.1f} ({data['uv_desc']:9s})  {data['temperature']}°C  {data['weather_desc']}")
+            country = city.get("country", "?")
+            print(f"  ✅ {city['name']:15s} ({country:12s})  UV {data['uv_index']:4.1f} ({data['uv_desc']:9s})  {data['temperature']}°C  {data['weather_desc']}")
             success_count += 1
         except Exception as exc:
             print(f"  ❌ {city['name']:15s}  {exc}")
