@@ -112,7 +112,7 @@
     </div>
 
     <!-- Countries -->
-    <div class="card">
+    <div class="card" id="countriesCard">
       <h2>Countries</h2>
       <div class="form-row">
         <div class="form-group"><label>Name</label><input id="countryName" placeholder="India"></div>
@@ -120,13 +120,19 @@
         <button class="btn btn-primary" onclick="addCountry()" style="align-self:end;">Add</button>
       </div>
       <table>
-        <thead><tr><th>Country</th><th>Code</th><th>Status</th><th>Cities</th><th></th></tr></thead>
+        <thead><tr>
+          <th class="sortable" onclick="sortCountries('name')">Country</th>
+          <th class="sortable" onclick="sortCountries('code')">Code</th>
+          <th class="sortable" onclick="sortCountries('status')">Status</th>
+          <th class="sortable" onclick="sortCountries('cities')">Cities</th>
+          <th></th>
+        </tr></thead>
         <tbody id="countriesBody"><tr><td colspan="5" style="color:#999">Loading...</td></tr></tbody>
       </table>
     </div>
 
     <!-- Cities -->
-    <div class="card">
+    <div class="card" id="citiesCard">
       <h2>Cities</h2>
       <div class="form-row">
         <div class="form-group"><label>Name</label><input id="cityName" placeholder="Mumbai"></div>
@@ -140,7 +146,14 @@
         <button class="btn btn-primary" onclick="addCity()" style="align-self:end;">Add</button>
       </div>
       <table>
-        <thead><tr><th>City</th><th>Country</th><th>Lat</th><th>Lon</th><th>Status</th><th></th></tr></thead>
+        <thead><tr>
+          <th class="sortable" onclick="sortCities('name')">City</th>
+          <th class="sortable" onclick="sortCities('country')">Country</th>
+          <th class="sortable" onclick="sortCities('lat')">Lat</th>
+          <th class="sortable" onclick="sortCities('lon')">Lon</th>
+          <th class="sortable" onclick="sortCities('status')">Status</th>
+          <th></th>
+        </tr></thead>
         <tbody id="citiesBody"><tr><td colspan="6" style="color:#999">Loading...</td></tr></tbody>
       </table>
     </div>
@@ -347,6 +360,10 @@ let allCountries = [];
 let uvData = [];
 let sortColumn = 'updated';
 let sortDirection = 'desc';
+let countriesSortColumn = 'name';
+let countriesSortDirection = 'asc';
+let citiesSortColumn = 'name';
+let citiesSortDirection = 'asc';
 
 function getSettings() {
   return {
@@ -551,11 +568,67 @@ async function loadCountries() {
   if (error) { setStatus('Error: ' + error.message); return; }
   allCountries = data;
   updateCountrySelect();
+  renderCountriesTable();
+}
 
+function renderCountriesTable() {
   const tbody = document.getElementById('countriesBody');
-  if (!data.length) { tbody.innerHTML = '<tr><td colspan="5" style="color:#999">No countries added yet.</td></tr>'; return; }
+  if (!allCountries.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="color:#999">No countries added yet.</td></tr>';
+    return;
+  }
 
-  tbody.innerHTML = data.map(co => {
+  // Sort countries
+  const sorted = [...allCountries].sort((a, b) => {
+    let aVal, bVal;
+    const cityCountA = a.cities?.length || 0;
+    const cityCountB = b.cities?.length || 0;
+
+    switch (countriesSortColumn) {
+      case 'name':
+        aVal = a.name || '';
+        bVal = b.name || '';
+        break;
+      case 'code':
+        aVal = a.code || '';
+        bVal = b.code || '';
+        break;
+      case 'status':
+        aVal = a.active ? 1 : 0;
+        bVal = b.active ? 1 : 0;
+        break;
+      case 'cities':
+        aVal = cityCountA;
+        bVal = cityCountB;
+        break;
+      default:
+        return 0;
+    }
+
+    let result = 0;
+    if (typeof aVal === 'string') {
+      result = aVal.localeCompare(bVal);
+    } else {
+      result = aVal - bVal;
+    }
+
+    return countriesSortDirection === 'asc' ? result : -result;
+  });
+
+  // Update sort indicators
+  document.querySelectorAll('#countriesCard th.sortable').forEach(th => {
+    th.classList.remove('asc', 'desc');
+  });
+  const activeHeader = Array.from(document.querySelectorAll('#countriesCard th.sortable')).find(th => {
+    const onclick = th.getAttribute('onclick');
+    return onclick && onclick.includes(`'${countriesSortColumn}'`);
+  });
+  if (activeHeader) {
+    activeHeader.classList.add(countriesSortDirection);
+  }
+
+  // Render rows
+  tbody.innerHTML = sorted.map(co => {
     const cityCount = co.cities?.length || 0;
     return `<tr>
       <td><strong>${co.name}</strong></td>
@@ -568,6 +641,16 @@ async function loadCountries() {
       <td><button class="btn btn-danger btn-sm" onclick="deleteCountry(${co.id})">x</button></td>
     </tr>`;
   }).join('');
+}
+
+function sortCountries(column) {
+  if (countriesSortColumn === column) {
+    countriesSortDirection = countriesSortDirection === 'asc' ? 'desc' : 'asc';
+  } else {
+    countriesSortColumn = column;
+    countriesSortDirection = column === 'cities' ? 'desc' : 'asc';
+  }
+  renderCountriesTable();
 }
 
 function updateCountrySelect() {
@@ -614,11 +697,69 @@ async function loadCities() {
   if (error) { setStatus('Error: ' + error.message); return; }
   allCities = data;
   updateCitySelect();
+  renderCitiesTable();
+}
 
+function renderCitiesTable() {
   const tbody = document.getElementById('citiesBody');
-  if (!data.length) { tbody.innerHTML = '<tr><td colspan="6" style="color:#999">No cities added yet.</td></tr>'; return; }
+  if (!allCities.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="color:#999">No cities added yet.</td></tr>';
+    return;
+  }
 
-  tbody.innerHTML = data.map(c => {
+  // Sort cities
+  const sorted = [...allCities].sort((a, b) => {
+    let aVal, bVal;
+
+    switch (citiesSortColumn) {
+      case 'name':
+        aVal = a.name || '';
+        bVal = b.name || '';
+        break;
+      case 'country':
+        aVal = a.countries?.name || '';
+        bVal = b.countries?.name || '';
+        break;
+      case 'lat':
+        aVal = a.lat || 0;
+        bVal = b.lat || 0;
+        break;
+      case 'lon':
+        aVal = a.lon || 0;
+        bVal = b.lon || 0;
+        break;
+      case 'status':
+        aVal = a.active ? 1 : 0;
+        bVal = b.active ? 1 : 0;
+        break;
+      default:
+        return 0;
+    }
+
+    let result = 0;
+    if (typeof aVal === 'string') {
+      result = aVal.localeCompare(bVal);
+    } else {
+      result = aVal - bVal;
+    }
+
+    return citiesSortDirection === 'asc' ? result : -result;
+  });
+
+  // Update sort indicators
+  document.querySelectorAll('#citiesCard th.sortable').forEach(th => {
+    th.classList.remove('asc', 'desc');
+  });
+  const activeHeader = Array.from(document.querySelectorAll('#citiesCard th.sortable')).find(th => {
+    const onclick = th.getAttribute('onclick');
+    return onclick && onclick.includes(`'${citiesSortColumn}'`);
+  });
+  if (activeHeader) {
+    activeHeader.classList.add(citiesSortDirection);
+  }
+
+  // Render rows
+  tbody.innerHTML = sorted.map(c => {
     const country = c.countries?.name || '?';
     return `<tr>
       <td><strong>${c.name}</strong></td>
@@ -632,6 +773,16 @@ async function loadCities() {
       <td><button class="btn btn-danger btn-sm" onclick="deleteCity(${c.id})">x</button></td>
     </tr>`;
   }).join('');
+}
+
+function sortCities(column) {
+  if (citiesSortColumn === column) {
+    citiesSortDirection = citiesSortDirection === 'asc' ? 'desc' : 'asc';
+  } else {
+    citiesSortColumn = column;
+    citiesSortDirection = ['lat', 'lon'].includes(column) ? 'desc' : 'asc';
+  }
+  renderCitiesTable();
 }
 
 function updateCitySelect() {
