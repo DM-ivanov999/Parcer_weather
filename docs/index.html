@@ -683,9 +683,10 @@ async function toggleCountry(id, active) {
     setStatus('Country deactivated → all cities deactivated');
   }
 
-  loadCountries();
-  loadCities(); // Need to refresh cities table too
-  loadData(); // Refresh UV data as countries affect visibility
+  // Reload all data sequentially to ensure UI updates
+  await loadCountries();
+  await loadCities(); // Need to refresh cities table too
+  await loadData(); // Refresh UV data as countries affect visibility
 }
 
 async function deleteCountry(id) {
@@ -837,8 +838,9 @@ async function toggleCity(id, active) {
     }
   }
 
-  loadCities();
-  loadCountries(); // Need to refresh countries table too
+  // Reload all data sequentially to ensure UI updates
+  await loadCities();
+  await loadCountries(); // Need to refresh countries table too
 }
 
 async function deleteCity(id) {
