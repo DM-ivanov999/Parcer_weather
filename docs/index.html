@@ -677,9 +677,12 @@ async function toggleCountry(id, active) {
   // Update country status
   await sb.from('countries').update({ active }).eq('id', id);
 
-  // If deactivating country, deactivate all its cities
-  if (!active) {
-    await sb.from('cities').update({ active: false }).eq('country_id', id);
+  // Update all cities from this country
+  await sb.from('cities').update({ active }).eq('country_id', id);
+
+  if (active) {
+    setStatus('Country activated → all cities activated');
+  } else {
     setStatus('Country deactivated → all cities deactivated');
   }
 
