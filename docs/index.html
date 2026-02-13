@@ -674,8 +674,17 @@ async function addCountry() {
 }
 
 async function toggleCountry(id, active) {
+  // Update country status
   await sb.from('countries').update({ active }).eq('id', id);
+
+  // If deactivating country, deactivate all its cities
+  if (!active) {
+    await sb.from('cities').update({ active: false }).eq('country_id', id);
+    setStatus('Country deactivated → all cities deactivated');
+  }
+
   loadCountries();
+  loadCities(); // Need to refresh cities table too
   loadData(); // Refresh UV data as countries affect visibility
 }
 
@@ -809,8 +818,27 @@ async function addCity() {
 }
 
 async function toggleCity(id, active) {
+  // Update city status
   await sb.from('cities').update({ active }).eq('id', id);
+
+  // If activating city, activate its country too
+  if (active) {
+    // Get city's country_id
+    const { data: city } = await sb
+      .from('cities')
+      .select('country_id')
+      .eq('id', id)
+      .single();
+
+    if (city) {
+      // Activate the country
+      await sb.from('countries').update({ active: true }).eq('id', city.country_id);
+      setStatus('City activated → country activated');
+    }
+  }
+
   loadCities();
+  loadCountries(); // Need to refresh countries table too
 }
 
 async function deleteCity(id) {
