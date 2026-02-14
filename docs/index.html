@@ -64,6 +64,15 @@
   .status { font-size: 12px; color: #666; margin-left: auto; }
   .clickable { cursor: pointer; }
   .clickable:hover { background: #f8f9fa; }
+
+  /* Pagination */
+  .pagination-bar { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid #eee; font-size: 12px; }
+  .pagination-controls { display: flex; gap: 6px; align-items: center; }
+  .pagination-controls button { padding: 4px 10px; font-size: 11px; }
+  .pagination-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .pagination-info { color: #666; }
+  .page-size-selector { display: flex; gap: 6px; align-items: center; }
+  .page-size-selector select { padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 11px; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -109,6 +118,23 @@
         </tr></thead>
         <tbody id="dataBody"><tr><td colspan="8" style="color:#999">Connect to load data...</td></tr></tbody>
       </table>
+      <div class="pagination-bar" id="dataPagination" style="display:none;">
+        <div class="page-size-selector">
+          <span>Show:</span>
+          <select id="dataPageSize" onchange="changeDataPageSize()">
+            <option value="15">15</option>
+            <option value="25" selected>25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+          <span>per page</span>
+        </div>
+        <div class="pagination-info" id="dataPageInfo"></div>
+        <div class="pagination-controls">
+          <button class="btn btn-outline btn-sm" onclick="changeDataPage(-1)" id="dataPrevBtn">← Prev</button>
+          <button class="btn btn-outline btn-sm" onclick="changeDataPage(1)" id="dataNextBtn">Next →</button>
+        </div>
+      </div>
     </div>
 
     <!-- Countries -->
@@ -129,6 +155,23 @@
         </tr></thead>
         <tbody id="countriesBody"><tr><td colspan="5" style="color:#999">Loading...</td></tr></tbody>
       </table>
+      <div class="pagination-bar" id="countriesPagination" style="display:none;">
+        <div class="page-size-selector">
+          <span>Show:</span>
+          <select id="countriesPageSize" onchange="changeCountriesPageSize()">
+            <option value="15" selected>15</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+          <span>per page</span>
+        </div>
+        <div class="pagination-info" id="countriesPageInfo"></div>
+        <div class="pagination-controls">
+          <button class="btn btn-outline btn-sm" onclick="changeCountriesPage(-1)" id="countriesPrevBtn">← Prev</button>
+          <button class="btn btn-outline btn-sm" onclick="changeCountriesPage(1)" id="countriesNextBtn">Next →</button>
+        </div>
+      </div>
     </div>
 
     <!-- Cities -->
@@ -156,6 +199,23 @@
         </tr></thead>
         <tbody id="citiesBody"><tr><td colspan="6" style="color:#999">Loading...</td></tr></tbody>
       </table>
+      <div class="pagination-bar" id="citiesPagination" style="display:none;">
+        <div class="page-size-selector">
+          <span>Show:</span>
+          <select id="citiesPageSize" onchange="changeCitiesPageSize()">
+            <option value="15">15</option>
+            <option value="25" selected>25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+          <span>per page</span>
+        </div>
+        <div class="pagination-info" id="citiesPageInfo"></div>
+        <div class="pagination-controls">
+          <button class="btn btn-outline btn-sm" onclick="changeCitiesPage(-1)" id="citiesPrevBtn">← Prev</button>
+          <button class="btn btn-outline btn-sm" onclick="changeCitiesPage(1)" id="citiesNextBtn">Next →</button>
+        </div>
+      </div>
     </div>
 
     <!-- DSP Mapping -->
@@ -365,6 +425,14 @@ let countriesSortDirection = 'asc';
 let citiesSortColumn = 'name';
 let citiesSortDirection = 'asc';
 
+// Pagination state
+let dataPage = 1;
+let dataPageSize = 25;
+let countriesPage = 1;
+let countriesPageSize = 15;
+let citiesPage = 1;
+let citiesPageSize = 25;
+
 function getSettings() {
   return {
     url: localStorage.getItem('sb_url') || '',
@@ -527,8 +595,28 @@ function renderDataTable() {
     activeHeader.classList.add(sortDirection);
   }
 
+  // Pagination
+  const totalItems = sorted.length;
+  const totalPages = Math.ceil(totalItems / dataPageSize);
+  dataPage = Math.max(1, Math.min(dataPage, totalPages || 1));
+  const startIdx = (dataPage - 1) * dataPageSize;
+  const endIdx = startIdx + dataPageSize;
+  const pageData = sorted.slice(startIdx, endIdx);
+
+  // Show/hide pagination
+  const paginationBar = document.getElementById('dataPagination');
+  if (totalItems > 0) {
+    paginationBar.style.display = 'flex';
+    document.getElementById('dataPageInfo').textContent =
+      `${startIdx + 1}-${Math.min(endIdx, totalItems)} of ${totalItems}`;
+    document.getElementById('dataPrevBtn').disabled = dataPage === 1;
+    document.getElementById('dataNextBtn').disabled = dataPage === totalPages;
+  } else {
+    paginationBar.style.display = 'none';
+  }
+
   // Render rows
-  tbody.innerHTML = sorted.map(r => {
+  tbody.innerHTML = pageData.map(r => {
     const cls = (r.uv_desc || 'low').toLowerCase().replace(' ', '');
     const ago = timeAgo(r.updated_at);
     const country = r.cities?.countries?.name || '?';
@@ -554,6 +642,18 @@ function sortData(column) {
     sortColumn = column;
     sortDirection = ['city', 'country', 'weather'].includes(column) ? 'asc' : 'desc';
   }
+  dataPage = 1; // Reset to first page on sort
+  renderDataTable();
+}
+
+function changeDataPage(delta) {
+  dataPage += delta;
+  renderDataTable();
+}
+
+function changeDataPageSize() {
+  dataPageSize = parseInt(document.getElementById('dataPageSize').value);
+  dataPage = 1; // Reset to first page
   renderDataTable();
 }
 
@@ -575,6 +675,7 @@ function renderCountriesTable() {
   const tbody = document.getElementById('countriesBody');
   if (!allCountries.length) {
     tbody.innerHTML = '<tr><td colspan="5" style="color:#999">No countries added yet.</td></tr>';
+    document.getElementById('countriesPagination').style.display = 'none';
     return;
   }
 
@@ -627,8 +728,28 @@ function renderCountriesTable() {
     activeHeader.classList.add(countriesSortDirection);
   }
 
+  // Pagination
+  const totalItems = sorted.length;
+  const totalPages = Math.ceil(totalItems / countriesPageSize);
+  countriesPage = Math.max(1, Math.min(countriesPage, totalPages || 1));
+  const startIdx = (countriesPage - 1) * countriesPageSize;
+  const endIdx = startIdx + countriesPageSize;
+  const pageData = sorted.slice(startIdx, endIdx);
+
+  // Show/hide pagination
+  const paginationBar = document.getElementById('countriesPagination');
+  if (totalItems > 0) {
+    paginationBar.style.display = 'flex';
+    document.getElementById('countriesPageInfo').textContent =
+      `${startIdx + 1}-${Math.min(endIdx, totalItems)} of ${totalItems}`;
+    document.getElementById('countriesPrevBtn').disabled = countriesPage === 1;
+    document.getElementById('countriesNextBtn').disabled = countriesPage === totalPages;
+  } else {
+    paginationBar.style.display = 'none';
+  }
+
   // Render rows
-  tbody.innerHTML = sorted.map(co => {
+  tbody.innerHTML = pageData.map(co => {
     const cityCount = co.cities?.length || 0;
     return `<tr>
       <td><strong>${co.name}</strong></td>
@@ -650,6 +771,18 @@ function sortCountries(column) {
     countriesSortColumn = column;
     countriesSortDirection = column === 'cities' ? 'desc' : 'asc';
   }
+  countriesPage = 1; // Reset to first page on sort
+  renderCountriesTable();
+}
+
+function changeCountriesPage(delta) {
+  countriesPage += delta;
+  renderCountriesTable();
+}
+
+function changeCountriesPageSize() {
+  countriesPageSize = parseInt(document.getElementById('countriesPageSize').value);
+  countriesPage = 1; // Reset to first page
   renderCountriesTable();
 }
 
@@ -717,6 +850,7 @@ function renderCitiesTable() {
   const tbody = document.getElementById('citiesBody');
   if (!allCities.length) {
     tbody.innerHTML = '<tr><td colspan="6" style="color:#999">No cities added yet.</td></tr>';
+    document.getElementById('citiesPagination').style.display = 'none';
     return;
   }
 
@@ -771,8 +905,28 @@ function renderCitiesTable() {
     activeHeader.classList.add(citiesSortDirection);
   }
 
+  // Pagination
+  const totalItems = sorted.length;
+  const totalPages = Math.ceil(totalItems / citiesPageSize);
+  citiesPage = Math.max(1, Math.min(citiesPage, totalPages || 1));
+  const startIdx = (citiesPage - 1) * citiesPageSize;
+  const endIdx = startIdx + citiesPageSize;
+  const pageData = sorted.slice(startIdx, endIdx);
+
+  // Show/hide pagination
+  const paginationBar = document.getElementById('citiesPagination');
+  if (totalItems > 0) {
+    paginationBar.style.display = 'flex';
+    document.getElementById('citiesPageInfo').textContent =
+      `${startIdx + 1}-${Math.min(endIdx, totalItems)} of ${totalItems}`;
+    document.getElementById('citiesPrevBtn').disabled = citiesPage === 1;
+    document.getElementById('citiesNextBtn').disabled = citiesPage === totalPages;
+  } else {
+    paginationBar.style.display = 'none';
+  }
+
   // Render rows
-  tbody.innerHTML = sorted.map(c => {
+  tbody.innerHTML = pageData.map(c => {
     const country = c.countries?.name || '?';
     return `<tr>
       <td><strong>${c.name}</strong></td>
@@ -795,6 +949,18 @@ function sortCities(column) {
     citiesSortColumn = column;
     citiesSortDirection = ['lat', 'lon'].includes(column) ? 'desc' : 'asc';
   }
+  citiesPage = 1; // Reset to first page on sort
+  renderCitiesTable();
+}
+
+function changeCitiesPage(delta) {
+  citiesPage += delta;
+  renderCitiesTable();
+}
+
+function changeCitiesPageSize() {
+  citiesPageSize = parseInt(document.getElementById('citiesPageSize').value);
+  citiesPage = 1; // Reset to first page
   renderCitiesTable();
 }
 
