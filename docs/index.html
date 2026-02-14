@@ -605,7 +605,7 @@ function renderDataTable() {
 
   // Show/hide pagination
   const paginationBar = document.getElementById('dataPagination');
-  if (totalItems > 0) {
+  if (totalItems > 15) {
     paginationBar.style.display = 'flex';
     document.getElementById('dataPageInfo').textContent =
       `${startIdx + 1}-${Math.min(endIdx, totalItems)} of ${totalItems}`;
@@ -738,7 +738,7 @@ function renderCountriesTable() {
 
   // Show/hide pagination
   const paginationBar = document.getElementById('countriesPagination');
-  if (totalItems > 0) {
+  if (totalItems > 15) {
     paginationBar.style.display = 'flex';
     document.getElementById('countriesPageInfo').textContent =
       `${startIdx + 1}-${Math.min(endIdx, totalItems)} of ${totalItems}`;
@@ -915,7 +915,7 @@ function renderCitiesTable() {
 
   // Show/hide pagination
   const paginationBar = document.getElementById('citiesPagination');
-  if (totalItems > 0) {
+  if (totalItems > 15) {
     paginationBar.style.display = 'flex';
     document.getElementById('citiesPageInfo').textContent =
       `${startIdx + 1}-${Math.min(endIdx, totalItems)} of ${totalItems}`;
