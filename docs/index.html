@@ -140,6 +140,11 @@
     <!-- Countries -->
     <div class="card" id="countriesCard">
       <h2>Countries</h2>
+      <div style="margin-bottom:12px;">
+        <input id="countriesSearch" type="text" placeholder="Search countries by name or code..."
+               style="width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:4px;font-size:13px;"
+               oninput="countriesPage=1; renderCountriesTable()">
+      </div>
       <div class="form-row">
         <div class="form-group"><label>Name</label><input id="countryName" placeholder="India"></div>
         <div class="form-group"><label>Code</label><input id="countryCode" placeholder="IN" maxlength="2" style="text-transform:uppercase"></div>
@@ -177,6 +182,11 @@
     <!-- Cities -->
     <div class="card" id="citiesCard">
       <h2>Cities</h2>
+      <div style="margin-bottom:12px;">
+        <input id="citiesSearch" type="text" placeholder="Search cities by name or country..."
+               style="width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:4px;font-size:13px;"
+               oninput="citiesPage=1; renderCitiesTable()">
+      </div>
       <div class="form-row">
         <div class="form-group"><label>Name</label><input id="cityName" placeholder="Mumbai"></div>
         <div class="form-group"><label>Country</label>
@@ -728,13 +738,22 @@ function renderCountriesTable() {
     activeHeader.classList.add(countriesSortDirection);
   }
 
+  // Filter by search query
+  const query = (document.getElementById('countriesSearch')?.value || '').toLowerCase().trim();
+  const filtered = query
+    ? sorted.filter(c =>
+        c.name.toLowerCase().includes(query) ||
+        c.code.toLowerCase().includes(query)
+      )
+    : sorted;
+
   // Pagination
-  const totalItems = sorted.length;
+  const totalItems = filtered.length;
   const totalPages = Math.ceil(totalItems / countriesPageSize);
   countriesPage = Math.max(1, Math.min(countriesPage, totalPages || 1));
   const startIdx = (countriesPage - 1) * countriesPageSize;
   const endIdx = startIdx + countriesPageSize;
-  const pageData = sorted.slice(startIdx, endIdx);
+  const pageData = filtered.slice(startIdx, endIdx);
 
   // Show/hide pagination
   const paginationBar = document.getElementById('countriesPagination');
@@ -905,13 +924,22 @@ function renderCitiesTable() {
     activeHeader.classList.add(citiesSortDirection);
   }
 
+  // Filter by search query
+  const query = (document.getElementById('citiesSearch')?.value || '').toLowerCase().trim();
+  const filtered = query
+    ? sorted.filter(c =>
+        c.name.toLowerCase().includes(query) ||
+        (c.countries?.name || '').toLowerCase().includes(query)
+      )
+    : sorted;
+
   // Pagination
-  const totalItems = sorted.length;
+  const totalItems = filtered.length;
   const totalPages = Math.ceil(totalItems / citiesPageSize);
   citiesPage = Math.max(1, Math.min(citiesPage, totalPages || 1));
   const startIdx = (citiesPage - 1) * citiesPageSize;
   const endIdx = startIdx + citiesPageSize;
-  const pageData = sorted.slice(startIdx, endIdx);
+  const pageData = filtered.slice(startIdx, endIdx);
 
   // Show/hide pagination
   const paginationBar = document.getElementById('citiesPagination');
